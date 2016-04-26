@@ -1,0 +1,1816 @@
+GAS LISTING /var/folders/vz/rkl2xwmd101cf1_bchzxp1hm0000gn/T//ccJxE77m.s 			page 1
+
+
+   1               	# 1 "usbdrv/usbdrvasm.S"
+   1               	/* Name: usbdrvasm.S
+   0               	
+   2               	 * Project: V-USB, virtual USB port for Atmel's(r) AVR(r) microcontrollers
+   3               	 * Author: Christian Starkjohann
+   4               	 * Creation Date: 2007-06-13
+   5               	 * Tabsize: 4
+   6               	 * Copyright: (c) 2007 by OBJECTIVE DEVELOPMENT Software GmbH
+   7               	 * License: GNU GPL v2 (see License.txt), GNU GPL v3 or proprietary (CommercialLicense.txt)
+   8               	 */
+   9               	
+  10               	/*
+  11               	General Description:
+  12               	This module is the assembler part of the USB driver. This file contains
+  13               	general code (preprocessor acrobatics and CRC computation) and then includes
+  14               	the file appropriate for the given clock rate.
+  15               	*/
+  16               	
+  17               	#define __SFR_OFFSET 0      /* used by avr-libc's register definitions */
+  18               	#include "usbportability.h"
+   1               	/* Name: usbportability.h
+   2               	 * Project: V-USB, virtual USB port for Atmel's(r) AVR(r) microcontrollers
+   3               	 * Author: Christian Starkjohann
+   4               	 * Creation Date: 2008-06-17
+   5               	 * Tabsize: 4
+   6               	 * Copyright: (c) 2008 by OBJECTIVE DEVELOPMENT Software GmbH
+   7               	 * License: GNU GPL v2 (see License.txt), GNU GPL v3 or proprietary (CommercialLicense.txt)
+   8               	 */
+   9               	
+  10               	/*
+  11               	General Description:
+  12               	This header is intended to contain all (or at least most of) the compiler
+  13               	and library dependent stuff. The C code is written for avr-gcc and avr-libc.
+  14               	The API of other development environments is converted to gcc's and avr-libc's
+  15               	API by means of defines.
+  16               	
+  17               	This header also contains all system includes since they depend on the
+  18               	development environment.
+  19               	
+  20               	Thanks to Oleg Semyonov for his help with the IAR tools port!
+  21               	*/
+  22               	
+  23               	#ifndef __usbportability_h_INCLUDED__
+  24               	#define __usbportability_h_INCLUDED__
+  25               	
+  26               	/* We check explicitly for IAR and CodeVision. Default is avr-gcc/avr-libc. */
+  27               	
+  28               	/* ------------------------------------------------------------------------- */
+  29               	#if defined __IAR_SYSTEMS_ICC__ || defined __IAR_SYSTEMS_ASM__  /* check for IAR */
+  30               	/* ------------------------------------------------------------------------- */
+  31               	
+  32               	#ifndef ENABLE_BIT_DEFINITIONS
+  33               	#   define ENABLE_BIT_DEFINITIONS	1   /* Enable bit definitions */
+  34               	#endif
+  35               	
+  36               	/* Include IAR headers */
+  37               	#include <ioavr.h>
+GAS LISTING /var/folders/vz/rkl2xwmd101cf1_bchzxp1hm0000gn/T//ccJxE77m.s 			page 2
+
+
+  38               	#ifndef __IAR_SYSTEMS_ASM__
+  39               	#   include <inavr.h>
+  40               	#endif
+  41               	
+  42               	#define __attribute__(arg)  /* not supported on IAR */
+  43               	
+  44               	#ifdef __IAR_SYSTEMS_ASM__
+  45               	#   define __ASSEMBLER__    /* IAR does not define standard macro for asm */
+  46               	#endif
+  47               	
+  48               	#ifdef __HAS_ELPM__
+  49               	#   define PROGMEM __farflash
+  50               	#else
+  51               	#   define PROGMEM __flash
+  52               	#endif
+  53               	
+  54               	#define USB_READ_FLASH(addr)    (*(PROGMEM char *)(addr))
+  55               	
+  56               	/* The following definitions are not needed by the driver, but may be of some
+  57               	 * help if you port a gcc based project to IAR.
+  58               	 */
+  59               	#define cli()       __disable_interrupt()
+  60               	#define sei()       __enable_interrupt()
+  61               	#define wdt_reset() __watchdog_reset()
+  62               	#define _BV(x)      (1 << (x))
+  63               	
+  64               	/* assembler compatibility macros */
+  65               	#define nop2    rjmp    $+2 /* jump to next instruction */
+  66               	#define XL      r26
+  67               	#define XH      r27
+  68               	#define YL      r28
+  69               	#define YH      r29
+  70               	#define ZL      r30
+  71               	#define ZH      r31
+  72               	#define lo8(x)  LOW(x)
+  73               	#define hi8(x)  (((x)>>8) & 0xff)   /* not HIGH to allow XLINK to make a proper range check */
+  74               	
+  75               	/* Depending on the device you use, you may get problems with the way usbdrv.h
+  76               	 * handles the differences between devices. Since IAR does not use #defines
+  77               	 * for MCU registers, we can't check for the existence of a particular
+  78               	 * register with an #ifdef. If the autodetection mechanism fails, include
+  79               	 * definitions for the required USB_INTR_* macros in your usbconfig.h. See
+  80               	 * usbconfig-prototype.h and usbdrv.h for details.
+  81               	 */
+  82               	
+  83               	/* ------------------------------------------------------------------------- */
+  84               	#elif __CODEVISIONAVR__ /* check for CodeVision AVR */
+  85               	/* ------------------------------------------------------------------------- */
+  86               	/* This port is not working (yet) */
+  87               	
+  88               	/* #define F_CPU   _MCU_CLOCK_FREQUENCY_    seems to be defined automatically */
+  89               	
+  90               	#include <io.h>
+  91               	#include <delay.h>
+  92               	
+  93               	#define __attribute__(arg)  /* not supported on IAR */
+  94               	
+GAS LISTING /var/folders/vz/rkl2xwmd101cf1_bchzxp1hm0000gn/T//ccJxE77m.s 			page 3
+
+
+  95               	#define PROGMEM                 __flash
+  96               	#define USB_READ_FLASH(addr)    (*(PROGMEM char *)(addr))
+  97               	
+  98               	#ifndef __ASSEMBLER__
+  99               	static inline void  cli(void)
+ 100               	{
+ 101               	    #asm("cli");
+ 102               	}
+ 103               	static inline void  sei(void)
+ 104               	{
+ 105               	    #asm("sei");
+ 106               	}
+ 107               	#endif
+ 108               	#define _delay_ms(t)    delay_ms(t)
+ 109               	#define _BV(x)          (1 << (x))
+ 110               	#define USB_CFG_USE_SWITCH_STATEMENT 1  /* macro for if() cascase fails for unknown reason */
+ 111               	
+ 112               	#define macro   .macro
+ 113               	#define endm    .endmacro
+ 114               	#define nop2    rjmp    .+0 /* jump to next instruction */
+ 115               	
+ 116               	/* ------------------------------------------------------------------------- */
+ 117               	#else   /* default development environment is avr-gcc/avr-libc */
+ 118               	/* ------------------------------------------------------------------------- */
+ 119               	
+ 120               	#include <avr/io.h>
+   1               	/* Copyright (c) 2002,2003,2005,2006,2007 Marek Michalkiewicz, Joerg Wunsch
+   2               	   Copyright (c) 2007 Eric B. Weddington
+   3               	   All rights reserved.
+   4               	
+   5               	   Redistribution and use in source and binary forms, with or without
+   6               	   modification, are permitted provided that the following conditions are met:
+   7               	
+   8               	   * Redistributions of source code must retain the above copyright
+   9               	     notice, this list of conditions and the following disclaimer.
+  10               	
+  11               	   * Redistributions in binary form must reproduce the above copyright
+  12               	     notice, this list of conditions and the following disclaimer in
+  13               	     the documentation and/or other materials provided with the
+  14               	     distribution.
+  15               	
+  16               	   * Neither the name of the copyright holders nor the names of
+  17               	     contributors may be used to endorse or promote products derived
+  18               	     from this software without specific prior written permission.
+  19               	
+  20               	  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+  21               	  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+  22               	  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+  23               	  ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+  24               	  LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+  25               	  CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+  26               	  SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+  27               	  INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+  28               	  CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+  29               	  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+  30               	  POSSIBILITY OF SUCH DAMAGE. */
+  31               	
+GAS LISTING /var/folders/vz/rkl2xwmd101cf1_bchzxp1hm0000gn/T//ccJxE77m.s 			page 4
+
+
+  32               	/* $Id: io.h 2211 2011-02-14 14:04:25Z aboyapati $ */
+  33               	
+  34               	/** \file */
+  35               	/** \defgroup avr_io <avr/io.h>: AVR device-specific IO definitions
+  36               	    \code #include <avr/io.h> \endcode
+  37               	
+  38               	    This header file includes the apropriate IO definitions for the
+  39               	    device that has been specified by the <tt>-mmcu=</tt> compiler
+  40               	    command-line switch.  This is done by diverting to the appropriate
+  41               	    file <tt>&lt;avr/io</tt><em>XXXX</em><tt>.h&gt;</tt> which should
+  42               	    never be included directly.  Some register names common to all
+  43               	    AVR devices are defined directly within <tt>&lt;avr/common.h&gt;</tt>,
+  44               	    which is included in <tt>&lt;avr/io.h&gt;</tt>,
+  45               	    but most of the details come from the respective include file.
+  46               	
+  47               	    Note that this file always includes the following files:
+  48               	    \code 
+  49               	    #include <avr/sfr_defs.h>
+  50               	    #include <avr/portpins.h>
+  51               	    #include <avr/common.h>
+  52               	    #include <avr/version.h>
+  53               	    \endcode
+  54               	    See \ref avr_sfr for more details about that header file.
+  55               	
+  56               	    Included are definitions of the IO register set and their
+  57               	    respective bit values as specified in the Atmel documentation.
+  58               	    Note that inconsistencies in naming conventions,
+  59               	    so even identical functions sometimes get different names on
+  60               	    different devices.
+  61               	
+  62               	    Also included are the specific names useable for interrupt
+  63               	    function definitions as documented
+  64               	    \ref avr_signames "here".
+  65               	
+  66               	    Finally, the following macros are defined:
+  67               	
+  68               	    - \b RAMEND
+  69               	    <br>
+  70               	    The last on-chip RAM address.
+  71               	    <br>
+  72               	    - \b XRAMEND
+  73               	    <br>
+  74               	    The last possible RAM location that is addressable. This is equal to 
+  75               	    RAMEND for devices that do not allow for external RAM. For devices 
+  76               	    that allow external RAM, this will be larger than RAMEND.
+  77               	    <br>
+  78               	    - \b E2END
+  79               	    <br>
+  80               	    The last EEPROM address.
+  81               	    <br>
+  82               	    - \b FLASHEND
+  83               	    <br>
+  84               	    The last byte address in the Flash program space.
+  85               	    <br>
+  86               	    - \b SPM_PAGESIZE
+  87               	    <br>
+  88               	    For devices with bootloader support, the flash pagesize
+GAS LISTING /var/folders/vz/rkl2xwmd101cf1_bchzxp1hm0000gn/T//ccJxE77m.s 			page 5
+
+
+  89               	    (in bytes) to be used for the \c SPM instruction. 
+  90               	    - \b E2PAGESIZE
+  91               	    <br>
+  92               	    The size of the EEPROM page.
+  93               	    
+  94               	*/
+  95               	
+  96               	#ifndef _AVR_IO_H_
+  97               	#define _AVR_IO_H_
+  98               	
+  99               	#include <avr/sfr_defs.h>
+   1               	/* Copyright (c) 2002, Marek Michalkiewicz <marekm@amelek.gda.pl>
+ 100               	
+ 101               	#if defined (__AVR_AT94K__)
+ 102               	#  include <avr/ioat94k.h>
+ 103               	#elif defined (__AVR_AT43USB320__)
+ 104               	#  include <avr/io43u32x.h>
+ 105               	#elif defined (__AVR_AT43USB355__)
+ 106               	#  include <avr/io43u35x.h>
+ 107               	#elif defined (__AVR_AT76C711__)
+ 108               	#  include <avr/io76c711.h>
+ 109               	#elif defined (__AVR_AT86RF401__)
+ 110               	#  include <avr/io86r401.h>
+ 111               	#elif defined (__AVR_AT90PWM1__)
+ 112               	#  include <avr/io90pwm1.h>
+ 113               	#elif defined (__AVR_AT90PWM2__)
+ 114               	#  include <avr/io90pwmx.h>
+ 115               	#elif defined (__AVR_AT90PWM2B__)
+ 116               	#  include <avr/io90pwm2b.h>
+ 117               	#elif defined (__AVR_AT90PWM3__)
+ 118               	#  include <avr/io90pwmx.h>
+ 119               	#elif defined (__AVR_AT90PWM3B__)
+ 120               	#  include <avr/io90pwm3b.h>
+ 121               	#elif defined (__AVR_AT90PWM216__)
+ 122               	#  include <avr/io90pwm216.h>
+ 123               	#elif defined (__AVR_AT90PWM316__)
+ 124               	#  include <avr/io90pwm316.h>
+ 125               	#elif defined (__AVR_AT90PWM81__)
+ 126               	#  include <avr/io90pwm81.h>
+ 127               	#elif defined (__AVR_ATmega8U2__)
+ 128               	#  include <avr/iom8u2.h>
+ 129               	#elif defined (__AVR_ATmega16M1__)
+ 130               	#  include <avr/iom16m1.h>
+ 131               	#elif defined (__AVR_ATmega16U2__)
+ 132               	#  include <avr/iom16u2.h>
+ 133               	#elif defined (__AVR_ATmega16U4__)
+ 134               	#  include <avr/iom16u4.h>
+ 135               	#elif defined (__AVR_ATmega32C1__)
+ 136               	#  include <avr/iom32c1.h>
+ 137               	#elif defined (__AVR_ATmega32M1__)
+ 138               	#  include <avr/iom32m1.h>
+ 139               	#elif defined (__AVR_ATmega32U2__)
+ 140               	#  include <avr/iom32u2.h>
+ 141               	#elif defined (__AVR_ATmega32U4__)
+ 142               	#  include <avr/iom32u4.h>
+ 143               	#elif defined (__AVR_ATmega32U6__)
+ 144               	#  include <avr/iom32u6.h>
+GAS LISTING /var/folders/vz/rkl2xwmd101cf1_bchzxp1hm0000gn/T//ccJxE77m.s 			page 6
+
+
+ 145               	#elif defined (__AVR_ATmega64C1__)
+ 146               	#  include <avr/iom64c1.h>
+ 147               	#elif defined (__AVR_ATmega64M1__)
+ 148               	#  include <avr/iom64m1.h>
+ 149               	#elif defined (__AVR_ATmega128__)
+ 150               	#  include <avr/iom128.h>
+ 151               	#elif defined (__AVR_ATmega1280__)
+ 152               	#  include <avr/iom1280.h>
+ 153               	#elif defined (__AVR_ATmega1281__)
+ 154               	#  include <avr/iom1281.h>
+ 155               	#elif defined (__AVR_ATmega1284P__)
+ 156               	#  include <avr/iom1284p.h>
+ 157               	#elif defined (__AVR_ATmega128RFA1__)
+ 158               	#  include <avr/iom128rfa1.h>
+ 159               	#elif defined (__AVR_ATmega2560__)
+ 160               	#  include <avr/iom2560.h>
+ 161               	#elif defined (__AVR_ATmega2561__)
+ 162               	#  include <avr/iom2561.h>
+ 163               	#elif defined (__AVR_AT90CAN32__)
+ 164               	#  include <avr/iocan32.h>
+ 165               	#elif defined (__AVR_AT90CAN64__)
+ 166               	#  include <avr/iocan64.h>
+ 167               	#elif defined (__AVR_AT90CAN128__)
+ 168               	#  include <avr/iocan128.h>
+ 169               	#elif defined (__AVR_AT90USB82__)
+ 170               	#  include <avr/iousb82.h>
+ 171               	#elif defined (__AVR_AT90USB162__)
+ 172               	#  include <avr/iousb162.h>
+ 173               	#elif defined (__AVR_AT90USB646__)
+ 174               	#  include <avr/iousb646.h>
+ 175               	#elif defined (__AVR_AT90USB647__)
+ 176               	#  include <avr/iousb647.h>
+ 177               	#elif defined (__AVR_AT90USB1286__)
+ 178               	#  include <avr/iousb1286.h>
+ 179               	#elif defined (__AVR_AT90USB1287__)
+ 180               	#  include <avr/iousb1287.h>
+ 181               	#elif defined (__AVR_ATmega64__)
+ 182               	#  include <avr/iom64.h>
+ 183               	#elif defined (__AVR_ATmega640__)
+ 184               	#  include <avr/iom640.h>
+ 185               	#elif defined (__AVR_ATmega644__) || defined (__AVR_ATmega644A__)
+ 186               	#  include <avr/iom644.h>
+ 187               	#elif defined (__AVR_ATmega644P__)
+ 188               	#  include <avr/iom644p.h>
+ 189               	#elif defined (__AVR_ATmega644PA__)
+ 190               	#  include <avr/iom644pa.h>
+ 191               	#elif defined (__AVR_ATmega645__) || defined (__AVR_ATmega645A__) || defined (__AVR_ATmega645P__)
+ 192               	#  include <avr/iom645.h>
+ 193               	#elif defined (__AVR_ATmega6450__) || defined (__AVR_ATmega6450A__) || defined (__AVR_ATmega6450P__
+ 194               	#  include <avr/iom6450.h>
+ 195               	#elif defined (__AVR_ATmega649__) || defined (__AVR_ATmega649A__)
+ 196               	#  include <avr/iom649.h>
+ 197               	#elif defined (__AVR_ATmega6490__) || defined (__AVR_ATmega6490A__) || defined (__AVR_ATmega6490P__
+ 198               	#  include <avr/iom6490.h>
+ 199               	#elif defined (__AVR_ATmega649P__)
+ 200               	#  include <avr/iom649p.h>
+ 201               	#elif defined (__AVR_ATmega64HVE__)
+GAS LISTING /var/folders/vz/rkl2xwmd101cf1_bchzxp1hm0000gn/T//ccJxE77m.s 			page 7
+
+
+ 202               	#  include <avr/iom64hve.h>
+ 203               	#elif defined (__AVR_ATmega103__)
+ 204               	#  include <avr/iom103.h>
+ 205               	#elif defined (__AVR_ATmega32__)
+ 206               	#  include <avr/iom32.h>
+ 207               	#elif defined (__AVR_ATmega323__)
+ 208               	#  include <avr/iom323.h>
+ 209               	#elif defined (__AVR_ATmega324P__) || defined (__AVR_ATmega324A__)
+ 210               	#  include <avr/iom324.h>
+ 211               	#elif defined (__AVR_ATmega324PA__)
+ 212               	#  include <avr/iom324pa.h>
+ 213               	#elif defined (__AVR_ATmega325__) || defined (__AVR_ATmega325A__)
+ 214               	#  include <avr/iom325.h>
+ 215               	#elif defined (__AVR_ATmega325P__)
+ 216               	#  include <avr/iom325.h>
+ 217               	#elif defined (__AVR_ATmega3250__) || defined (__AVR_ATmega3250A__)
+ 218               	#  include <avr/iom3250.h>
+ 219               	#elif defined (__AVR_ATmega3250P__)
+ 220               	#  include <avr/iom3250.h>
+ 221               	#elif defined (__AVR_ATmega328P__) || defined (__AVR_ATmega328__)
+ 222               	#  include <avr/iom328p.h>
+ 223               	#elif defined (__AVR_ATmega329__) || defined (__AVR_ATmega329A__)
+ 224               	#  include <avr/iom329.h>
+ 225               	#elif defined (__AVR_ATmega329P__) || defined (__AVR_ATmega329PA__)
+ 226               	#  include <avr/iom329.h>
+ 227               	#elif defined (__AVR_ATmega3290__) || defined (__AVR_ATmega3290A__)
+ 228               	#  include <avr/iom3290.h>
+ 229               	#elif defined (__AVR_ATmega3290P__)
+ 230               	#  include <avr/iom3290.h>
+ 231               	#elif defined (__AVR_ATmega32HVB__)
+ 232               	#  include <avr/iom32hvb.h>
+ 233               	#elif defined (__AVR_ATmega32HVBREVB__)
+ 234               	#  include <avr/iom32hvbrevb.h>
+ 235               	#elif defined (__AVR_ATmega406__)
+ 236               	#  include <avr/iom406.h>
+ 237               	#elif defined (__AVR_ATmega16__)
+ 238               	#  include <avr/iom16.h>
+ 239               	#elif defined (__AVR_ATmega16A__)
+ 240               	#  include <avr/iom16a.h>
+ 241               	#elif defined (__AVR_ATmega161__)
+ 242               	#  include <avr/iom161.h>
+ 243               	#elif defined (__AVR_ATmega162__)
+ 244               	#  include <avr/iom162.h>
+ 245               	#elif defined (__AVR_ATmega163__)
+ 246               	#  include <avr/iom163.h>
+ 247               	#elif defined (__AVR_ATmega164P__) || defined (__AVR_ATmega164A__)
+ 248               	#  include <avr/iom164.h>
+ 249               	#elif defined (__AVR_ATmega165__) || defined (__AVR_ATmega165A__)
+ 250               	#  include <avr/iom165.h>
+ 251               	#elif defined (__AVR_ATmega165P__)
+ 252               	#  include <avr/iom165p.h>
+ 253               	#elif defined (__AVR_ATmega168__) || defined (__AVR_ATmega168A__)
+ 254               	#  include <avr/iom168.h>
+ 255               	#elif defined (__AVR_ATmega168P__)
+ 256               	#  include <avr/iom168p.h>
+ 257               	#elif defined (__AVR_ATmega169__) || defined (__AVR_ATmega169A__)
+ 258               	#  include <avr/iom169.h>
+GAS LISTING /var/folders/vz/rkl2xwmd101cf1_bchzxp1hm0000gn/T//ccJxE77m.s 			page 8
+
+
+ 259               	#elif defined (__AVR_ATmega169P__)
+ 260               	#  include <avr/iom169p.h>
+ 261               	#elif defined (__AVR_ATmega169PA__)
+ 262               	#  include <avr/iom169pa.h>
+ 263               	#elif defined (__AVR_ATmega8HVA__)
+ 264               	#  include <avr/iom8hva.h>
+ 265               	#elif defined (__AVR_ATmega16HVA__)
+ 266               	#  include <avr/iom16hva.h>
+ 267               	#elif defined (__AVR_ATmega16HVA2__)
+ 268               	#  include <avr/iom16hva2.h>
+ 269               	#elif defined (__AVR_ATmega16HVB__)
+ 270               	#  include <avr/iom16hvb.h>
+ 271               	#elif defined (__AVR_ATmega16HVBREVB__)
+ 272               	#  include <avr/iom16hvbrevb.h>
+ 273               	#elif defined (__AVR_ATmega8__)
+ 274               	#  include <avr/iom8.h>
+ 275               	#elif defined (__AVR_ATmega48__) || defined (__AVR_ATmega48A__)
+ 276               	#  include <avr/iom48.h>
+ 277               	#elif defined (__AVR_ATmega48P__)
+ 278               	#  include <avr/iom48p.h>
+ 279               	#elif defined (__AVR_ATmega88__) || defined (__AVR_ATmega88A__)
+ 280               	#  include <avr/iom88.h>
+ 281               	#elif defined (__AVR_ATmega88P__)
+ 282               	#  include <avr/iom88p.h>
+ 283               	#elif defined (__AVR_ATmega88PA__)
+ 284               	#  include <avr/iom88pa.h>
+ 285               	#elif defined (__AVR_ATmega8515__)
+ 286               	#  include <avr/iom8515.h>
+ 287               	#elif defined (__AVR_ATmega8535__)
+ 288               	#  include <avr/iom8535.h>
+ 289               	#elif defined (__AVR_AT90S8535__)
+ 290               	#  include <avr/io8535.h>
+ 291               	#elif defined (__AVR_AT90C8534__)
+ 292               	#  include <avr/io8534.h>
+ 293               	#elif defined (__AVR_AT90S8515__)
+ 294               	#  include <avr/io8515.h>
+ 295               	#elif defined (__AVR_AT90S4434__)
+ 296               	#  include <avr/io4434.h>
+ 297               	#elif defined (__AVR_AT90S4433__)
+ 298               	#  include <avr/io4433.h>
+ 299               	#elif defined (__AVR_AT90S4414__)
+ 300               	#  include <avr/io4414.h>
+ 301               	#elif defined (__AVR_ATtiny22__)
+ 302               	#  include <avr/iotn22.h>
+ 303               	#elif defined (__AVR_ATtiny26__)
+ 304               	#  include <avr/iotn26.h>
+ 305               	#elif defined (__AVR_AT90S2343__)
+ 306               	#  include <avr/io2343.h>
+ 307               	#elif defined (__AVR_AT90S2333__)
+ 308               	#  include <avr/io2333.h>
+ 309               	#elif defined (__AVR_AT90S2323__)
+ 310               	#  include <avr/io2323.h>
+ 311               	#elif defined (__AVR_AT90S2313__)
+ 312               	#  include <avr/io2313.h>
+ 313               	#elif defined (__AVR_ATtiny4__)
+ 314               	#  include <avr/iotn4.h>
+ 315               	#elif defined (__AVR_ATtiny5__)
+GAS LISTING /var/folders/vz/rkl2xwmd101cf1_bchzxp1hm0000gn/T//ccJxE77m.s 			page 9
+
+
+ 316               	#  include <avr/iotn5.h>
+ 317               	#elif defined (__AVR_ATtiny9__)
+ 318               	#  include <avr/iotn9.h>
+ 319               	#elif defined (__AVR_ATtiny10__)
+ 320               	#  include <avr/iotn10.h>
+ 321               	#elif defined (__AVR_ATtiny20__)
+ 322               	#  include <avr/iotn20.h>
+ 323               	#elif defined (__AVR_ATtiny40__)
+ 324               	#  include <avr/iotn40.h>
+ 325               	#elif defined (__AVR_ATtiny2313__)
+ 326               	#  include <avr/iotn2313.h>
+ 327               	#elif defined (__AVR_ATtiny2313A__)
+ 328               	#  include <avr/iotn2313a.h>
+ 329               	#elif defined (__AVR_ATtiny13__)
+ 330               	#  include <avr/iotn13.h>
+ 331               	#elif defined (__AVR_ATtiny13A__)
+ 332               	#  include <avr/iotn13a.h>
+ 333               	#elif defined (__AVR_ATtiny25__)
+ 334               	#  include <avr/iotn25.h>
+ 335               	#elif defined (__AVR_ATtiny4313__)
+ 336               	#  include <avr/iotn4313.h>
+ 337               	#elif defined (__AVR_ATtiny45__)
+ 338               	#  include <avr/iotn45.h>
+   1               	/* Copyright (c) 2005, Joerg Wunsch
+   2               	   All rights reserved.
+   3               	
+   4               	   Redistribution and use in source and binary forms, with or without
+   5               	   modification, are permitted provided that the following conditions are met:
+   6               	
+   7               	   * Redistributions of source code must retain the above copyright
+   8               	     notice, this list of conditions and the following disclaimer.
+   9               	
+  10               	   * Redistributions in binary form must reproduce the above copyright
+  11               	     notice, this list of conditions and the following disclaimer in
+  12               	     the documentation and/or other materials provided with the
+  13               	     distribution.
+  14               	
+  15               	   * Neither the name of the copyright holders nor the names of
+  16               	     contributors may be used to endorse or promote products derived
+  17               	     from this software without specific prior written permission.
+  18               	
+  19               	  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+  20               	  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+  21               	  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+  22               	  ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+  23               	  LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+  24               	  CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+  25               	  SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+  26               	  INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+  27               	  CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+  28               	  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+  29               	  POSSIBILITY OF SUCH DAMAGE. */
+  30               	
+  31               	/* $Id: iotn45.h 2115 2010-04-05 23:19:53Z arcanum $ */
+  32               	
+  33               	/* avr/iotn45.h - definitions for ATtiny45 */
+  34               	
+GAS LISTING /var/folders/vz/rkl2xwmd101cf1_bchzxp1hm0000gn/T//ccJxE77m.s 			page 10
+
+
+  35               	#ifndef _AVR_IOTN45_H_
+  36               	#define _AVR_IOTN45_H_ 1
+  37               	
+  38               	#include <avr/iotnx5.h>
+   1               	/* Copyright (c) 2005,2007 Anatoly Sokolov
+  39               	
+ 339               	#elif defined (__AVR_ATtiny85__)
+ 340               	#  include <avr/iotn85.h>
+ 341               	#elif defined (__AVR_ATtiny24__)
+ 342               	#  include <avr/iotn24.h>
+ 343               	#elif defined (__AVR_ATtiny24A__)
+ 344               	#  include <avr/iotn24a.h>
+ 345               	#elif defined (__AVR_ATtiny44__)
+ 346               	#  include <avr/iotn44.h>
+ 347               	#elif defined (__AVR_ATtiny44A__)
+ 348               	#  include <avr/iotn44a.h>
+ 349               	#elif defined (__AVR_ATtiny84__)
+ 350               	#  include <avr/iotn84.h>
+ 351               	#elif defined (__AVR_ATtiny84A__)
+ 352               	#  include <avr/iotn84a.h>  
+ 353               	#elif defined (__AVR_ATtiny261__)
+ 354               	#  include <avr/iotn261.h>
+ 355               	#elif defined (__AVR_ATtiny261A__)
+ 356               	#  include <avr/iotn261a.h>
+ 357               	#elif defined (__AVR_ATtiny461__)
+ 358               	#  include <avr/iotn461.h>
+ 359               	#elif defined (__AVR_ATtiny461A__)
+ 360               	#  include <avr/iotn461a.h>
+ 361               	#elif defined (__AVR_ATtiny861__)
+ 362               	#  include <avr/iotn861.h>
+ 363               	#elif defined (__AVR_ATtiny861A__)
+ 364               	#  include <avr/iotn861a.h>
+ 365               	#elif defined (__AVR_ATtiny43U__)
+ 366               	#  include <avr/iotn43u.h>
+ 367               	#elif defined (__AVR_ATtiny48__)
+ 368               	#  include <avr/iotn48.h>
+ 369               	#elif defined (__AVR_ATtiny88__)
+ 370               	#  include <avr/iotn88.h>
+ 371               	#elif defined (__AVR_ATtiny87__)
+ 372               	#  include <avr/iotn87.h>
+ 373               	#elif defined (__AVR_ATtiny167__)
+ 374               	#  include <avr/iotn167.h>
+ 375               	#elif defined (__AVR_AT90SCR100__)
+ 376               	#  include <avr/io90scr100.h>
+ 377               	#elif defined (__AVR_ATxmega16A4__)
+ 378               	#  include <avr/iox16a4.h>
+ 379               	#elif defined (__AVR_ATxmega16D4__)
+ 380               	#  include <avr/iox16d4.h>
+ 381               	#elif defined (__AVR_ATxmega32A4__)
+ 382               	#  include <avr/iox32a4.h>
+ 383               	#elif defined (__AVR_ATxmega32D4__)
+ 384               	#  include <avr/iox32d4.h>
+ 385               	#elif defined (__AVR_ATxmega64A1__)
+ 386               	#  include <avr/iox64a1.h>
+ 387               	#elif defined (__AVR_ATxmega64A1U__)
+ 388               	#  include <avr/iox64a1u.h>
+ 389               	#elif defined (__AVR_ATxmega64A3__)
+GAS LISTING /var/folders/vz/rkl2xwmd101cf1_bchzxp1hm0000gn/T//ccJxE77m.s 			page 11
+
+
+ 390               	#  include <avr/iox64a3.h>
+ 391               	#elif defined (__AVR_ATxmega64D3__)
+ 392               	#  include <avr/iox64d3.h>
+ 393               	#elif defined (__AVR_ATxmega128A1__)
+ 394               	#  include <avr/iox128a1.h>
+ 395               	#elif defined (__AVR_ATxmega128A1U__)
+ 396               	#  include <avr/iox128a1u.h>
+ 397               	#elif defined (__AVR_ATxmega128A3__)
+ 398               	#  include <avr/iox128a3.h>
+ 399               	#elif defined (__AVR_ATxmega128D3__)
+ 400               	#  include <avr/iox128d3.h>
+ 401               	#elif defined (__AVR_ATxmega192A3__)
+ 402               	#  include <avr/iox192a3.h>
+ 403               	#elif defined (__AVR_ATxmega192D3__)
+ 404               	#  include <avr/iox192d3.h>
+ 405               	#elif defined (__AVR_ATxmega256A3__)
+ 406               	#  include <avr/iox256a3.h>
+ 407               	#elif defined (__AVR_ATxmega256A3B__)
+ 408               	#  include <avr/iox256a3b.h>
+ 409               	#elif defined (__AVR_ATxmega256D3__)
+ 410               	#  include <avr/iox256d3.h>
+ 411               	#elif defined (__AVR_ATA6289__)
+ 412               	#  include <avr/ioa6289.h>
+ 413               	/* avr1: the following only supported for assembler programs */
+ 414               	#elif defined (__AVR_ATtiny28__)
+ 415               	#  include <avr/iotn28.h>
+ 416               	#elif defined (__AVR_AT90S1200__)
+ 417               	#  include <avr/io1200.h>
+ 418               	#elif defined (__AVR_ATtiny15__)
+ 419               	#  include <avr/iotn15.h>
+ 420               	#elif defined (__AVR_ATtiny12__)
+ 421               	#  include <avr/iotn12.h>
+ 422               	#elif defined (__AVR_ATtiny11__)
+ 423               	#  include <avr/iotn11.h>
+ 424               	#elif defined (__AVR_M3000__)
+ 425               	#  include <avr/iom3000.h>
+ 426               	#else
+ 427               	#  if !defined(__COMPILING_AVR_LIBC__)
+ 428               	#    warning "device type not defined"
+ 429               	#  endif
+ 430               	#endif
+ 431               	
+ 432               	#include <avr/portpins.h>
+   1               	/* Copyright (c) 2003  Theodore A. Roth
+ 433               	
+ 434               	#include <avr/common.h>
+   1               	/* Copyright (c) 2007 Eric B. Weddington
+ 435               	
+ 436               	#include <avr/version.h>
+   1               	/* Copyright (c) 2005, Joerg Wunsch                               -*- c -*-
+ 437               	
+ 438               	/* Include fuse.h after individual IO header files. */
+ 439               	#include <avr/fuse.h>
+   1               	/* Copyright (c) 2007, Atmel Corporation
+ 440               	
+ 441               	/* Include lock.h after individual IO header files. */
+ 442               	#include <avr/lock.h>
+GAS LISTING /var/folders/vz/rkl2xwmd101cf1_bchzxp1hm0000gn/T//ccJxE77m.s 			page 12
+
+
+   1               	/* Copyright (c) 2007, Atmel Corporation
+ 443               	
+ 121               	#ifdef __ASSEMBLER__
+  19               	#include "usbdrv.h"         /* for common defs */
+   1               	/* Name: usbdrv.h
+   2               	 * Project: V-USB, virtual USB port for Atmel's(r) AVR(r) microcontrollers
+   3               	 * Author: Christian Starkjohann
+   4               	 * Creation Date: 2004-12-29
+   5               	 * Tabsize: 4
+   6               	 * Copyright: (c) 2005 by OBJECTIVE DEVELOPMENT Software GmbH
+   7               	 * License: GNU GPL v2 (see License.txt), GNU GPL v3 or proprietary (CommercialLicense.txt)
+   8               	 */
+   9               	
+  10               	#ifndef __usbdrv_h_included__
+  11               	#define __usbdrv_h_included__
+  12               	#include "usbconfig.h"
+   1               	/* Name: usbconfig.h
+  13               	#include "usbportability.h"
+  20               	
+  21               	/* register names */
+  22               	#define x1      r16
+  23               	#define x2      r17
+  24               	#define shift   r18
+  25               	#define cnt     r19
+  26               	#define x3      r20
+  27               	#define x4      r21
+  28               	#define x5		r22
+  29               	#define bitcnt  x5
+  30               	#define phase   x4
+  31               	#define leap    x4
+  32               	
+  33               	/* Some assembler dependent definitions and declarations: */
+  34               	
+  35               	#ifdef __IAR_SYSTEMS_ASM__
+  36               	    extern  usbRxBuf, usbDeviceAddr, usbNewDeviceAddr, usbInputBufOffset
+  37               	    extern  usbCurrentTok, usbRxLen, usbRxToken, usbTxLen
+  38               	    extern  usbTxBuf, usbTxStatus1, usbTxStatus3
+  39               	#   if USB_COUNT_SOF
+  40               	        extern usbSofCount
+  41               	#   endif
+  42               	    public  usbCrc16
+  43               	    public  usbCrc16Append
+  44               	
+  45               	    COMMON  INTVEC
+  46               	#   ifndef USB_INTR_VECTOR
+  47               	        ORG     INT0_vect
+  48               	#   else /* USB_INTR_VECTOR */
+  49               	        ORG     USB_INTR_VECTOR
+  50               	#       undef   USB_INTR_VECTOR
+  51               	#   endif /* USB_INTR_VECTOR */
+  52               	#   define  USB_INTR_VECTOR usbInterruptHandler
+  53               	    rjmp    USB_INTR_VECTOR
+  54               	    RSEG    CODE
+  55               	
+  56               	#else /* __IAR_SYSTEMS_ASM__ */
+  57               	
+  58               	#   ifndef USB_INTR_VECTOR /* default to hardware interrupt INT0 */
+GAS LISTING /var/folders/vz/rkl2xwmd101cf1_bchzxp1hm0000gn/T//ccJxE77m.s 			page 13
+
+
+  59               	#       ifdef INT0_vect
+  60               	#           define USB_INTR_VECTOR  INT0_vect       // this is the "new" define for the vector
+  61               	#       else
+  62               	#           define USB_INTR_VECTOR  SIG_INTERRUPT0  // this is the "old" vector
+  63               	#       endif
+  64               	#   endif
+  65               	    .text
+  66               	    .global USB_INTR_VECTOR
+  67               	    .type   USB_INTR_VECTOR, @function
+  68               	    .global usbCrc16
+  69               	    .global usbCrc16Append
+  70               	#endif /* __IAR_SYSTEMS_ASM__ */
+  71               	
+  72               	
+  73               	#if USB_INTR_PENDING < 0x40 /* This is an I/O address, use in and out */
+  74               	#   define  USB_LOAD_PENDING(reg)   in reg, USB_INTR_PENDING
+  75               	#   define  USB_STORE_PENDING(reg)  out USB_INTR_PENDING, reg
+  76               	#else   /* It's a memory address, use lds and sts */
+  77               	#   define  USB_LOAD_PENDING(reg)   lds reg, USB_INTR_PENDING
+  78               	#   define  USB_STORE_PENDING(reg)  sts USB_INTR_PENDING, reg
+  79               	#endif
+  80               	
+  81               	#define usbTxLen1   usbTxStatus1
+  82               	#define usbTxBuf1   (usbTxStatus1 + 1)
+  83               	#define usbTxLen3   usbTxStatus3
+  84               	#define usbTxBuf3   (usbTxStatus3 + 1)
+  85               	
+  86               	
+  87               	;----------------------------------------------------------------------------
+  88               	; Utility functions
+  89               	;----------------------------------------------------------------------------
+  90               	
+  91               	#ifdef __IAR_SYSTEMS_ASM__
+  92               	/* Register assignments for usbCrc16 on IAR cc */
+  93               	/* Calling conventions on IAR:
+  94               	 * First parameter passed in r16/r17, second in r18/r19 and so on.
+  95               	 * Callee must preserve r4-r15, r24-r29 (r28/r29 is frame pointer)
+  96               	 * Result is passed in r16/r17
+  97               	 * In case of the "tiny" memory model, pointers are only 8 bit with no
+  98               	 * padding. We therefore pass argument 1 as "16 bit unsigned".
+  99               	 */
+ 100               	RTMODEL "__rt_version", "3"
+ 101               	/* The line above will generate an error if cc calling conventions change.
+ 102               	 * The value "3" above is valid for IAR 4.10B/W32
+ 103               	 */
+ 104               	#   define argLen   r18 /* argument 2 */
+ 105               	#   define argPtrL  r16 /* argument 1 */
+ 106               	#   define argPtrH  r17 /* argument 1 */
+ 107               	
+ 108               	#   define resCrcL  r16 /* result */
+ 109               	#   define resCrcH  r17 /* result */
+ 110               	
+ 111               	#   define ptrL     ZL
+ 112               	#   define ptrH     ZH
+ 113               	#   define ptr      Z
+ 114               	#   define byte     r22
+ 115               	#   define bitCnt   r19
+GAS LISTING /var/folders/vz/rkl2xwmd101cf1_bchzxp1hm0000gn/T//ccJxE77m.s 			page 14
+
+
+ 116               	#   define polyL    r20
+ 117               	#   define polyH    r21
+ 118               	#   define scratch  r23
+ 119               	
+ 120               	#else  /* __IAR_SYSTEMS_ASM__ */ 
+ 121               	/* Register assignments for usbCrc16 on gcc */
+ 122               	/* Calling conventions on gcc:
+ 123               	 * First parameter passed in r24/r25, second in r22/23 and so on.
+ 124               	 * Callee must preserve r1-r17, r28/r29
+ 125               	 * Result is passed in r24/r25
+ 126               	 */
+ 127               	#   define argLen   r22 /* argument 2 */
+ 128               	#   define argPtrL  r24 /* argument 1 */
+ 129               	#   define argPtrH  r25 /* argument 1 */
+ 130               	
+ 131               	#   define resCrcL  r24 /* result */
+ 132               	#   define resCrcH  r25 /* result */
+ 133               	
+ 134               	#   define ptrL     XL
+ 135               	#   define ptrH     XH
+ 136               	#   define ptr      x
+ 137               	#   define byte     r18
+ 138               	#   define bitCnt   r19
+ 139               	#   define polyL    r20
+ 140               	#   define polyH    r21
+ 141               	#   define scratch  r23
+ 142               	
+ 143               	#endif
+ 144               	
+ 145               	#if USB_USE_FAST_CRC
+ 146               	
+ 147               	; This implementation is faster, but has bigger code size
+ 148               	; Thanks to Slawomir Fras (BoskiDialer) for this code!
+ 149               	; It implements the following C pseudo-code:
+ 150               	; unsigned table(unsigned char x)
+ 151               	; {
+ 152               	; unsigned    value;
+ 153               	; 
+ 154               	;     value = (unsigned)x << 6;
+ 155               	;     value ^= (unsigned)x << 7;
+ 156               	;     if(parity(x))
+ 157               	;         value ^= 0xc001;
+ 158               	;     return value;
+ 159               	; }
+ 160               	; unsigned usbCrc16(unsigned char *argPtr, unsigned char argLen)
+ 161               	; {
+ 162               	; unsigned crc = 0xffff;
+ 163               	; 
+ 164               	;     while(argLen--)
+ 165               	;         crc = table(lo8(crc) ^ *argPtr++) ^ hi8(crc);
+ 166               	;     return ~crc;
+ 167               	; }
+ 168               	
+ 169               	; extern unsigned usbCrc16(unsigned char *argPtr, unsigned char argLen);
+ 170               	;   argPtr  r24+25 / r16+r17
+ 171               	;   argLen  r22 / r18
+ 172               	; temp variables:
+GAS LISTING /var/folders/vz/rkl2xwmd101cf1_bchzxp1hm0000gn/T//ccJxE77m.s 			page 15
+
+
+ 173               	;   byte    r18 / r22
+ 174               	;   scratch r23
+ 175               	;   resCrc  r24+r25 / r16+r17
+ 176               	;   ptr     X / Z
+ 177               	usbCrc16:
+ 178               	    mov     ptrL, argPtrL
+ 179               	    mov     ptrH, argPtrH
+ 180               	    ldi     resCrcL, 0xFF
+ 181               	    ldi     resCrcH, 0xFF
+ 182               	    rjmp    usbCrc16LoopTest
+ 183               	usbCrc16ByteLoop:
+ 184               	    ld      byte, ptr+
+ 185               	    eor     resCrcL, byte   ; resCrcL is now 'x' in table()
+ 186               	    mov     byte, resCrcL   ; compute parity of 'x'
+ 187               	    swap    byte
+ 188               	    eor     byte, resCrcL
+ 189               	    mov     scratch, byte
+ 190               	    lsr     byte
+ 191               	    lsr     byte
+ 192               	    eor     byte, scratch
+ 193               	    inc     byte
+ 194               	    lsr     byte
+ 195               	    andi    byte, 1         ; byte is now parity(x)
+ 196               	    mov     scratch, resCrcL
+ 197               	    mov     resCrcL, resCrcH
+ 198               	    eor     resCrcL, byte   ; low byte of if(parity(x)) value ^= 0xc001;
+ 199               	    neg     byte
+ 200               	    andi    byte, 0xc0
+ 201               	    mov     resCrcH, byte   ; high byte of if(parity(x)) value ^= 0xc001;
+ 202               	    clr     byte
+ 203               	    lsr     scratch
+ 204               	    ror     byte
+ 205               	    eor     resCrcH, scratch
+ 206               	    eor     resCrcL, byte
+ 207               	    lsr     scratch
+ 208               	    ror     byte
+ 209               	    eor     resCrcH, scratch
+ 210               	    eor     resCrcL, byte
+ 211               	usbCrc16LoopTest:
+ 212               	    subi    argLen, 1
+ 213               	    brsh    usbCrc16ByteLoop
+ 214               	    com     resCrcL
+ 215               	    com     resCrcH
+ 216               	    ret
+ 217               	
+ 218               	#else   /* USB_USE_FAST_CRC */
+ 219               	
+ 220               	; This implementation is slower, but has less code size
+ 221               	;
+ 222               	; extern unsigned usbCrc16(unsigned char *argPtr, unsigned char argLen);
+ 223               	;   argPtr  r24+25 / r16+r17
+ 224               	;   argLen  r22 / r18
+ 225               	; temp variables:
+ 226               	;   byte    r18 / r22
+ 227               	;   bitCnt  r19
+ 228               	;   poly    r20+r21
+ 229               	;   scratch r23
+GAS LISTING /var/folders/vz/rkl2xwmd101cf1_bchzxp1hm0000gn/T//ccJxE77m.s 			page 16
+
+
+ 230               	;   resCrc  r24+r25 / r16+r17
+ 231               	;   ptr     X / Z
+ 232               	usbCrc16:
+ 233:usbdrv/usbdrvasm.S ****     mov     ptrL, argPtrL
+ 234:usbdrv/usbdrvasm.S ****     mov     ptrH, argPtrH
+ 235:usbdrv/usbdrvasm.S ****     ldi     resCrcL, 0
+ 236:usbdrv/usbdrvasm.S ****     ldi     resCrcH, 0
+ 237:usbdrv/usbdrvasm.S ****     ldi     polyL, lo8(0xa001)
+ 238:usbdrv/usbdrvasm.S ****     ldi     polyH, hi8(0xa001)
+ 239:usbdrv/usbdrvasm.S ****     com     argLen      ; argLen = -argLen - 1: modified loop to ensure that carry is set
+ 240:usbdrv/usbdrvasm.S ****     ldi     bitCnt, 0   ; loop counter with starnd condition = end condition
+ 241:usbdrv/usbdrvasm.S ****     rjmp    usbCrcLoopEntry
+ 242               	usbCrcByteLoop:
+ 243:usbdrv/usbdrvasm.S ****     ld      byte, ptr+
+ 244:usbdrv/usbdrvasm.S ****     eor     resCrcL, byte
+ 245               	usbCrcBitLoop:
+ 246:usbdrv/usbdrvasm.S ****     ror     resCrcH     ; carry is always set here (see brcs jumps to here)
+ 247:usbdrv/usbdrvasm.S ****     ror     resCrcL
+ 248:usbdrv/usbdrvasm.S ****     brcs    usbCrcNoXor
+ 249:usbdrv/usbdrvasm.S ****     eor     resCrcL, polyL
+ 250:usbdrv/usbdrvasm.S ****     eor     resCrcH, polyH
+ 251               	usbCrcNoXor:
+ 252:usbdrv/usbdrvasm.S ****     subi    bitCnt, 224 ; (8 * 224) % 256 = 0; this loop iterates 8 times
+ 253:usbdrv/usbdrvasm.S ****     brcs    usbCrcBitLoop
+ 254               	usbCrcLoopEntry:
+ 255:usbdrv/usbdrvasm.S ****     subi    argLen, -1
+ 256:usbdrv/usbdrvasm.S ****     brcs    usbCrcByteLoop
+ 257               	usbCrcReady:
+ 258:usbdrv/usbdrvasm.S ****     ret
+ 259               	; Thanks to Reimar Doeffinger for optimizing this CRC routine!
+ 260               	
+ 261               	#endif /* USB_USE_FAST_CRC */
+ 262               	
+ 263               	; extern unsigned usbCrc16Append(unsigned char *data, unsigned char len);
+ 264               	usbCrc16Append:
+ 265:usbdrv/usbdrvasm.S ****     rcall   usbCrc16
+ 266:usbdrv/usbdrvasm.S ****     st      ptr+, resCrcL
+ 267:usbdrv/usbdrvasm.S ****     st      ptr+, resCrcH
+ 268:usbdrv/usbdrvasm.S ****     ret
+ 269               	
+ 270               	#undef argLen
+ 271               	#undef argPtrL
+ 272               	#undef argPtrH
+ 273               	#undef resCrcL
+ 274               	#undef resCrcH
+ 275               	#undef ptrL
+ 276               	#undef ptrH
+ 277               	#undef ptr
+ 278               	#undef byte
+ 279               	#undef bitCnt
+ 280               	#undef polyL
+ 281               	#undef polyH
+ 282               	#undef scratch
+ 283               	
+ 284               	
+ 285               	#if USB_CFG_HAVE_MEASURE_FRAME_LENGTH
+ 286               	#ifdef __IAR_SYSTEMS_ASM__
+GAS LISTING /var/folders/vz/rkl2xwmd101cf1_bchzxp1hm0000gn/T//ccJxE77m.s 			page 17
+
+
+ 287               	/* Register assignments for usbMeasureFrameLength on IAR cc */
+ 288               	/* Calling conventions on IAR:
+ 289               	 * First parameter passed in r16/r17, second in r18/r19 and so on.
+ 290               	 * Callee must preserve r4-r15, r24-r29 (r28/r29 is frame pointer)
+ 291               	 * Result is passed in r16/r17
+ 292               	 * In case of the "tiny" memory model, pointers are only 8 bit with no
+ 293               	 * padding. We therefore pass argument 1 as "16 bit unsigned".
+ 294               	 */
+ 295               	#   define resL     r16
+ 296               	#   define resH     r17
+ 297               	#   define cnt16L   r30
+ 298               	#   define cnt16H   r31
+ 299               	#   define cntH     r18
+ 300               	
+ 301               	#else  /* __IAR_SYSTEMS_ASM__ */ 
+ 302               	/* Register assignments for usbMeasureFrameLength on gcc */
+ 303               	/* Calling conventions on gcc:
+ 304               	 * First parameter passed in r24/r25, second in r22/23 and so on.
+ 305               	 * Callee must preserve r1-r17, r28/r29
+ 306               	 * Result is passed in r24/r25
+ 307               	 */
+ 308               	#   define resL     r24
+ 309               	#   define resH     r25
+ 310               	#   define cnt16L   r24
+ 311               	#   define cnt16H   r25
+ 312               	#   define cntH     r26
+ 313               	#endif
+ 314               	#   define cnt16    cnt16L
+ 315               	
+ 316               	; extern unsigned usbMeasurePacketLength(void);
+ 317               	; returns time between two idle strobes in multiples of 7 CPU clocks
+ 318               	.global usbMeasureFrameLength
+ 319               	usbMeasureFrameLength:
+ 320:usbdrv/usbdrvasm.S ****     ldi     cntH, 6         ; wait ~ 10 ms for D- == 0
+ 321:usbdrv/usbdrvasm.S ****     clr     cnt16L
+ 322:usbdrv/usbdrvasm.S ****     clr     cnt16H
+ 323               	usbMFTime16:
+ 324:usbdrv/usbdrvasm.S ****     dec     cntH
+ 325:usbdrv/usbdrvasm.S ****     breq    usbMFTimeout
+ 326               	usbMFWaitStrobe:            ; first wait for D- == 0 (idle strobe)
+ 327:usbdrv/usbdrvasm.S ****     sbiw    cnt16, 1        ;[0] [6]
+ 328:usbdrv/usbdrvasm.S ****     breq    usbMFTime16     ;[2]
+ 329:usbdrv/usbdrvasm.S ****     sbic    USBIN, USBMINUS ;[3]
+ 330:usbdrv/usbdrvasm.S ****     rjmp    usbMFWaitStrobe ;[4]
+ 331               	usbMFWaitIdle:              ; then wait until idle again
+ 332:usbdrv/usbdrvasm.S ****     sbis    USBIN, USBMINUS ;1 wait for D- == 1
+ 333:usbdrv/usbdrvasm.S ****     rjmp    usbMFWaitIdle   ;2
+ 334:usbdrv/usbdrvasm.S ****     ldi     cnt16L, 1       ;1 represents cycles so far
+ 335:usbdrv/usbdrvasm.S ****     clr     cnt16H          ;1
+ 336               	usbMFWaitLoop:
+ 337:usbdrv/usbdrvasm.S ****     in      cntH, USBIN     ;[0] [7]
+ 338:usbdrv/usbdrvasm.S ****     adiw    cnt16, 1        ;[1]
+ 339:usbdrv/usbdrvasm.S ****     breq    usbMFTimeout    ;[3]
+ 340:usbdrv/usbdrvasm.S ****     andi    cntH, USBMASK   ;[4]
+ 341:usbdrv/usbdrvasm.S ****     brne    usbMFWaitLoop   ;[5]
+ 342               	usbMFTimeout:
+ 343               	#if resL != cnt16L
+GAS LISTING /var/folders/vz/rkl2xwmd101cf1_bchzxp1hm0000gn/T//ccJxE77m.s 			page 18
+
+
+ 344               	    mov     resL, cnt16L
+ 345               	    mov     resH, cnt16H
+ 346               	#endif
+ 347:usbdrv/usbdrvasm.S ****     ret
+ 348               	
+ 349               	#undef resL
+ 350               	#undef resH
+ 351               	#undef cnt16
+ 352               	#undef cnt16L
+ 353               	#undef cnt16H
+ 354               	#undef cntH
+ 355               	
+ 356               	#endif  /* USB_CFG_HAVE_MEASURE_FRAME_LENGTH */
+ 357               	
+ 358               	;----------------------------------------------------------------------------
+ 359               	; Now include the clock rate specific code
+ 360               	;----------------------------------------------------------------------------
+ 361               	
+ 362               	#ifndef USB_CFG_CLOCK_KHZ
+ 363               	#   ifdef F_CPU
+ 364               	#       define USB_CFG_CLOCK_KHZ (F_CPU/1000)
+ 365               	#   else
+ 366               	#       error "USB_CFG_CLOCK_KHZ not defined in usbconfig.h and no F_CPU set!"
+ 367               	#   endif
+ 368               	#endif
+ 369               	
+ 370               	#if USB_CFG_CHECK_CRC   /* separate dispatcher for CRC type modules */
+ 371               	#   if USB_CFG_CLOCK_KHZ == 18000
+ 372               	#       include "usbdrvasm18-crc.inc"
+ 373               	#   else
+ 374               	#       error "USB_CFG_CLOCK_KHZ is not one of the supported crc-rates!"
+ 375               	#   endif
+ 376               	#else   /* USB_CFG_CHECK_CRC */
+ 377               	#   if USB_CFG_CLOCK_KHZ == 12000
+ 378               	#       include "usbdrvasm12.inc"
+ 379               	#   elif USB_CFG_CLOCK_KHZ == 12800
+ 380               	#       include "usbdrvasm128.inc"
+ 381               	#   elif USB_CFG_CLOCK_KHZ == 15000
+ 382               	#       include "usbdrvasm15.inc"
+ 383               	#   elif USB_CFG_CLOCK_KHZ == 16000
+ 384               	#       include "usbdrvasm16.inc"
+ 385               	#   elif USB_CFG_CLOCK_KHZ == 16500
+ 386               	#       include "usbdrvasm165.inc"
+   1               	/* Name: usbdrvasm165.inc
+   2               	 * Project: V-USB, virtual USB port for Atmel's(r) AVR(r) microcontrollers
+   3               	 * Author: Christian Starkjohann
+   4               	 * Creation Date: 2007-04-22
+   5               	 * Tabsize: 4
+   6               	 * Copyright: (c) 2007 by OBJECTIVE DEVELOPMENT Software GmbH
+   7               	 * License: GNU GPL v2 (see License.txt), GNU GPL v3 or proprietary (CommercialLicense.txt)
+   8               	 */
+   9               	
+  10               	/* Do not link this file! Link usbdrvasm.S instead, which includes the
+  11               	 * appropriate implementation!
+  12               	 */
+  13               	
+  14               	/*
+GAS LISTING /var/folders/vz/rkl2xwmd101cf1_bchzxp1hm0000gn/T//ccJxE77m.s 			page 19
+
+
+  15               	General Description:
+  16               	This file is the 16.5 MHz version of the USB driver. It is intended for the
+  17               	ATTiny45 and similar controllers running on 16.5 MHz internal RC oscillator.
+  18               	This version contains a phase locked loop in the receiver routine to cope with
+  19               	slight clock rate deviations of up to +/- 1%.
+  20               	
+  21               	See usbdrv.h for a description of the entire driver.
+  22               	
+  23               	Since almost all of this code is timing critical, don't change unless you
+  24               	really know what you are doing! Many parts require not only a maximum number
+  25               	of CPU cycles, but even an exact number of cycles!
+  26               	*/
+  27               	
+  28               	;Software-receiver engine. Strict timing! Don't change unless you can preserve timing!
+  29               	;interrupt response time: 4 cycles + insn running = 7 max if interrupts always enabled
+  30               	;max allowable interrupt latency: 59 cycles -> max 52 cycles interrupt disable
+  31               	;max stack usage: [ret(2), r0, SREG, YL, YH, shift, x1, x2, x3, x4, cnt] = 12 bytes
+  32               	;nominal frequency: 16.5 MHz -> 11 cycles per bit
+  33               	; 16.3125 MHz < F_CPU < 16.6875 MHz (+/- 1.1%)
+  34               	; Numbers in brackets are clocks counted from center of last sync bit
+  35               	; when instruction starts
+  36               	
+  37               	
+  38               	USB_INTR_VECTOR:
+  39               	;order of registers pushed: YL, SREG [sofError], r0, YH, shift, x1, x2, x3, x4, cnt
+  40:usbdrv/usbdrvasm165.inc ****     push    YL                  ;[-23] push only what is necessary to sync with edge ASAP
+  41:usbdrv/usbdrvasm165.inc ****     in      YL, SREG            ;[-21]
+  42:usbdrv/usbdrvasm165.inc ****     push    YL                  ;[-20]
+  43               	;----------------------------------------------------------------------------
+  44               	; Synchronize with sync pattern:
+  45               	;----------------------------------------------------------------------------
+  46               	;sync byte (D-) pattern LSb to MSb: 01010100 [1 = idle = J, 0 = K]
+  47               	;sync up with J to K edge during sync pattern -- use fastest possible loops
+  48               	;The first part waits at most 1 bit long since we must be in sync pattern.
+  49               	;YL is guarenteed to be < 0x80 because I flag is clear. When we jump to
+  50               	;waitForJ, ensure that this prerequisite is met.
+  51               	waitForJ:
+  52:usbdrv/usbdrvasm165.inc ****     inc     YL
+  53:usbdrv/usbdrvasm165.inc ****     sbis    USBIN, USBMINUS
+  54:usbdrv/usbdrvasm165.inc ****     brne    waitForJ        ; just make sure we have ANY timeout
+  55               	waitForK:
+  56               	;The following code results in a sampling window of < 1/4 bit which meets the spec.
+  57:usbdrv/usbdrvasm165.inc ****     sbis    USBIN, USBMINUS     ;[-15]
+  58:usbdrv/usbdrvasm165.inc ****     rjmp    foundK              ;[-14]
+  59:usbdrv/usbdrvasm165.inc ****     sbis    USBIN, USBMINUS
+  60:usbdrv/usbdrvasm165.inc ****     rjmp    foundK
+  61:usbdrv/usbdrvasm165.inc ****     sbis    USBIN, USBMINUS
+  62:usbdrv/usbdrvasm165.inc ****     rjmp    foundK
+  63:usbdrv/usbdrvasm165.inc ****     sbis    USBIN, USBMINUS
+  64:usbdrv/usbdrvasm165.inc ****     rjmp    foundK
+  65:usbdrv/usbdrvasm165.inc ****     sbis    USBIN, USBMINUS
+  66:usbdrv/usbdrvasm165.inc ****     rjmp    foundK
+  67:usbdrv/usbdrvasm165.inc ****     sbis    USBIN, USBMINUS
+  68:usbdrv/usbdrvasm165.inc ****     rjmp    foundK
+  69               	#if USB_COUNT_SOF
+  70:usbdrv/usbdrvasm165.inc ****     lds     YL, usbSofCount
+  71:usbdrv/usbdrvasm165.inc ****     inc     YL
+GAS LISTING /var/folders/vz/rkl2xwmd101cf1_bchzxp1hm0000gn/T//ccJxE77m.s 			page 20
+
+
+  72:usbdrv/usbdrvasm165.inc ****     sts     usbSofCount, YL
+  73:usbdrv/usbdrvasm165.inc **** #endif  /* USB_COUNT_SOF */
+  74:usbdrv/usbdrvasm165.inc **** #ifdef USB_SOF_HOOK
+  75:usbdrv/usbdrvasm165.inc ****     USB_SOF_HOOK
+  76:usbdrv/usbdrvasm165.inc **** #endif
+  77:usbdrv/usbdrvasm165.inc ****     rjmp    sofError
+  78               	foundK:                         ;[-12]
+  79               	;{3, 5} after falling D- edge, average delay: 4 cycles [we want 5 for center sampling]
+  80               	;we have 1 bit time for setup purposes, then sample again. Numbers in brackets
+  81               	;are cycles from center of first sync (double K) bit after the instruction
+  82:usbdrv/usbdrvasm165.inc ****     push    r0                  ;[-12]
+  83               	;   [---]                       ;[-11]
+  84:usbdrv/usbdrvasm165.inc ****     push    YH                  ;[-10]
+  85               	;   [---]                       ;[-9]
+  86:usbdrv/usbdrvasm165.inc ****     lds     YL, usbInputBufOffset;[-8]
+  87               	;   [---]                       ;[-7]
+  88:usbdrv/usbdrvasm165.inc ****     clr     YH                  ;[-6]
+  89:usbdrv/usbdrvasm165.inc ****     subi    YL, lo8(-(usbRxBuf));[-5] [rx loop init]
+  90:usbdrv/usbdrvasm165.inc ****     sbci    YH, hi8(-(usbRxBuf));[-4] [rx loop init]
+  91:usbdrv/usbdrvasm165.inc ****     mov     r0, x2              ;[-3] [rx loop init]
+  92:usbdrv/usbdrvasm165.inc ****     sbis    USBIN, USBMINUS     ;[-2] we want two bits K (sample 2 cycles too early)
+  93:usbdrv/usbdrvasm165.inc ****     rjmp    haveTwoBitsK        ;[-1]
+  94:usbdrv/usbdrvasm165.inc ****     pop     YH                  ;[0] undo the pushes from before
+  95:usbdrv/usbdrvasm165.inc ****     pop     r0                  ;[2]
+  96:usbdrv/usbdrvasm165.inc ****     rjmp    waitForK            ;[4] this was not the end of sync, retry
+  97               	; The entire loop from waitForK until rjmp waitForK above must not exceed two
+  98               	; bit times (= 22 cycles).
+  99               	
+ 100               	;----------------------------------------------------------------------------
+ 101               	; push more registers and initialize values while we sample the first bits:
+ 102               	;----------------------------------------------------------------------------
+ 103               	haveTwoBitsK:               ;[1]
+ 104:usbdrv/usbdrvasm165.inc ****     push    shift           ;[1]
+ 105:usbdrv/usbdrvasm165.inc ****     push    x1              ;[3]
+ 106:usbdrv/usbdrvasm165.inc ****     push    x2              ;[5]
+ 107:usbdrv/usbdrvasm165.inc ****     push    x3              ;[7]
+ 108:usbdrv/usbdrvasm165.inc ****     ldi     shift, 0xff     ;[9] [rx loop init]
+ 109:usbdrv/usbdrvasm165.inc ****     ori     x3, 0xff        ;[10] [rx loop init] == ser x3, clear zero flag
+ 110               	
+ 111:usbdrv/usbdrvasm165.inc ****     in      x1, USBIN       ;[11] <-- sample bit 0
+ 112:usbdrv/usbdrvasm165.inc ****     bst     x1, USBMINUS    ;[12]
+ 113:usbdrv/usbdrvasm165.inc ****     bld     shift, 0        ;[13]
+ 114:usbdrv/usbdrvasm165.inc ****     push    x4              ;[14] == phase
+ 115               	;   [---]                   ;[15]
+ 116:usbdrv/usbdrvasm165.inc ****     push    cnt             ;[16]
+ 117               	;   [---]                   ;[17]
+ 118:usbdrv/usbdrvasm165.inc ****     ldi     phase, 0        ;[18] [rx loop init]
+ 119:usbdrv/usbdrvasm165.inc ****     ldi     cnt, USB_BUFSIZE;[19] [rx loop init]
+ 120:usbdrv/usbdrvasm165.inc ****     rjmp    rxbit1          ;[20]
+ 121               	;   [---]                   ;[21]
+ 122               	
+ 123               	;----------------------------------------------------------------------------
+ 124               	; Receiver loop (numbers in brackets are cycles within byte after instr)
+ 125               	;----------------------------------------------------------------------------
+ 126               	/*
+ 127               	byte oriented operations done during loop:
+ 128               	bit 0: store data
+GAS LISTING /var/folders/vz/rkl2xwmd101cf1_bchzxp1hm0000gn/T//ccJxE77m.s 			page 21
+
+
+ 129               	bit 1: SE0 check
+ 130               	bit 2: overflow check
+ 131               	bit 3: catch up
+ 132               	bit 4: rjmp to achieve conditional jump range
+ 133               	bit 5: PLL
+ 134               	bit 6: catch up
+ 135               	bit 7: jump, fixup bitstuff
+ 136               	; 87 [+ 2] cycles
+ 137               	------------------------------------------------------------------
+ 138               	*/
+ 139               	continueWithBit5:
+ 140:usbdrv/usbdrvasm165.inc ****     in      x2, USBIN       ;[055] <-- bit 5
+ 141:usbdrv/usbdrvasm165.inc ****     eor     r0, x2          ;[056]
+ 142:usbdrv/usbdrvasm165.inc ****     or      phase, r0       ;[057]
+ 143:usbdrv/usbdrvasm165.inc ****     sbrc    phase, USBMINUS ;[058]
+ 144:usbdrv/usbdrvasm165.inc ****     lpm                     ;[059] optional nop3; modifies r0
+ 145:usbdrv/usbdrvasm165.inc ****     in      phase, USBIN    ;[060] <-- phase
+ 146:usbdrv/usbdrvasm165.inc ****     eor     x1, x2          ;[061]
+ 147:usbdrv/usbdrvasm165.inc ****     bst     x1, USBMINUS    ;[062]
+ 148:usbdrv/usbdrvasm165.inc ****     bld     shift, 5        ;[063]
+ 149:usbdrv/usbdrvasm165.inc ****     andi    shift, 0x3f     ;[064]
+ 150:usbdrv/usbdrvasm165.inc ****     in      x1, USBIN       ;[065] <-- bit 6
+ 151:usbdrv/usbdrvasm165.inc ****     breq    unstuff5        ;[066] *** unstuff escape
+ 152:usbdrv/usbdrvasm165.inc ****     eor     phase, x1       ;[067]
+ 153:usbdrv/usbdrvasm165.inc ****     eor     x2, x1          ;[068]
+ 154:usbdrv/usbdrvasm165.inc ****     bst     x2, USBMINUS    ;[069]
+ 155:usbdrv/usbdrvasm165.inc ****     bld     shift, 6        ;[070]
+ 156               	didUnstuff6:                ;[   ]
+ 157:usbdrv/usbdrvasm165.inc ****     in      r0, USBIN       ;[071] <-- phase
+ 158:usbdrv/usbdrvasm165.inc ****     cpi     shift, 0x02     ;[072]
+ 159:usbdrv/usbdrvasm165.inc ****     brlo    unstuff6        ;[073] *** unstuff escape
+ 160               	didUnstuff5:                ;[   ]
+ 161:usbdrv/usbdrvasm165.inc ****     nop2                    ;[074]
+ 162               	;   [---]                   ;[075]
+ 163:usbdrv/usbdrvasm165.inc ****     in      x2, USBIN       ;[076] <-- bit 7
+ 164:usbdrv/usbdrvasm165.inc ****     eor     x1, x2          ;[077]
+ 165:usbdrv/usbdrvasm165.inc ****     bst     x1, USBMINUS    ;[078]
+ 166:usbdrv/usbdrvasm165.inc ****     bld     shift, 7        ;[079]
+ 167               	didUnstuff7:                ;[   ]
+ 168:usbdrv/usbdrvasm165.inc ****     eor     r0, x2          ;[080]
+ 169:usbdrv/usbdrvasm165.inc ****     or      phase, r0       ;[081]
+ 170:usbdrv/usbdrvasm165.inc ****     in      r0, USBIN       ;[082] <-- phase
+ 171:usbdrv/usbdrvasm165.inc ****     cpi     shift, 0x04     ;[083]
+ 172:usbdrv/usbdrvasm165.inc ****     brsh    rxLoop          ;[084]
+ 173               	;   [---]                   ;[085]
+ 174               	unstuff7:                   ;[   ]
+ 175:usbdrv/usbdrvasm165.inc ****     andi    x3, ~0x80       ;[085]
+ 176:usbdrv/usbdrvasm165.inc ****     ori     shift, 0x80     ;[086]
+ 177:usbdrv/usbdrvasm165.inc ****     in      x2, USBIN       ;[087] <-- sample stuffed bit 7
+ 178:usbdrv/usbdrvasm165.inc ****     nop                     ;[088]
+ 179:usbdrv/usbdrvasm165.inc ****     rjmp    didUnstuff7     ;[089]
+ 180               	;   [---]                   ;[090]
+ 181               	                            ;[080]
+ 182               	
+ 183               	unstuff5:                   ;[067]
+ 184:usbdrv/usbdrvasm165.inc ****     eor     phase, x1       ;[068]
+ 185:usbdrv/usbdrvasm165.inc ****     andi    x3, ~0x20       ;[069]
+GAS LISTING /var/folders/vz/rkl2xwmd101cf1_bchzxp1hm0000gn/T//ccJxE77m.s 			page 22
+
+
+ 186:usbdrv/usbdrvasm165.inc ****     ori     shift, 0x20     ;[070]
+ 187:usbdrv/usbdrvasm165.inc ****     in      r0, USBIN       ;[071] <-- phase
+ 188:usbdrv/usbdrvasm165.inc ****     mov     x2, x1          ;[072]
+ 189:usbdrv/usbdrvasm165.inc ****     nop                     ;[073]
+ 190:usbdrv/usbdrvasm165.inc ****     nop2                    ;[074]
+ 191               	;   [---]                   ;[075]
+ 192:usbdrv/usbdrvasm165.inc ****     in      x1, USBIN       ;[076] <-- bit 6
+ 193:usbdrv/usbdrvasm165.inc ****     eor     r0, x1          ;[077]
+ 194:usbdrv/usbdrvasm165.inc ****     or      phase, r0       ;[078]
+ 195:usbdrv/usbdrvasm165.inc ****     eor     x2, x1          ;[079]
+ 196:usbdrv/usbdrvasm165.inc ****     bst     x2, USBMINUS    ;[080]
+ 197:usbdrv/usbdrvasm165.inc ****     bld     shift, 6        ;[081] no need to check bitstuffing, we just had one
+ 198:usbdrv/usbdrvasm165.inc ****     in      r0, USBIN       ;[082] <-- phase
+ 199:usbdrv/usbdrvasm165.inc ****     rjmp    didUnstuff5     ;[083]
+ 200               	;   [---]                   ;[084]
+ 201               	                            ;[074]
+ 202               	
+ 203               	unstuff6:                   ;[074]
+ 204:usbdrv/usbdrvasm165.inc ****     andi    x3, ~0x40       ;[075]
+ 205:usbdrv/usbdrvasm165.inc ****     in      x1, USBIN       ;[076] <-- bit 6 again
+ 206:usbdrv/usbdrvasm165.inc ****     ori     shift, 0x40     ;[077]
+ 207:usbdrv/usbdrvasm165.inc ****     nop2                    ;[078]
+ 208               	;   [---]                   ;[079]
+ 209:usbdrv/usbdrvasm165.inc ****     rjmp    didUnstuff6     ;[080]
+ 210               	;   [---]                   ;[081]
+ 211               	                            ;[071]
+ 212               	
+ 213               	unstuff0:                   ;[013]
+ 214:usbdrv/usbdrvasm165.inc ****     eor     r0, x2          ;[014]
+ 215:usbdrv/usbdrvasm165.inc ****     or      phase, r0       ;[015]
+ 216:usbdrv/usbdrvasm165.inc ****     andi    x2, USBMASK     ;[016] check for SE0
+ 217:usbdrv/usbdrvasm165.inc ****     in      r0, USBIN       ;[017] <-- phase
+ 218:usbdrv/usbdrvasm165.inc ****     breq    didUnstuff0     ;[018] direct jump to se0 would be too long
+ 219:usbdrv/usbdrvasm165.inc ****     andi    x3, ~0x01       ;[019]
+ 220:usbdrv/usbdrvasm165.inc ****     ori     shift, 0x01     ;[020]
+ 221:usbdrv/usbdrvasm165.inc ****     mov     x1, x2          ;[021] mov existing sample
+ 222:usbdrv/usbdrvasm165.inc ****     in      x2, USBIN       ;[022] <-- bit 1 again
+ 223:usbdrv/usbdrvasm165.inc ****     rjmp    didUnstuff0     ;[023]
+ 224               	;   [---]                   ;[024]
+ 225               	                            ;[014]
+ 226               	
+ 227               	unstuff1:                   ;[024]
+ 228:usbdrv/usbdrvasm165.inc ****     eor     r0, x1          ;[025]
+ 229:usbdrv/usbdrvasm165.inc ****     or      phase, r0       ;[026]
+ 230:usbdrv/usbdrvasm165.inc ****     andi    x3, ~0x02       ;[027]
+ 231:usbdrv/usbdrvasm165.inc ****     in      r0, USBIN       ;[028] <-- phase
+ 232:usbdrv/usbdrvasm165.inc ****     ori     shift, 0x02     ;[029]
+ 233:usbdrv/usbdrvasm165.inc ****     mov     x2, x1          ;[030]
+ 234:usbdrv/usbdrvasm165.inc ****     rjmp    didUnstuff1     ;[031]
+ 235               	;   [---]                   ;[032]
+ 236               	                            ;[022]
+ 237               	
+ 238               	unstuff2:                   ;[035]
+ 239:usbdrv/usbdrvasm165.inc ****     eor     r0, x2          ;[036]
+ 240:usbdrv/usbdrvasm165.inc ****     or      phase, r0       ;[037]
+ 241:usbdrv/usbdrvasm165.inc ****     andi    x3, ~0x04       ;[038]
+ 242:usbdrv/usbdrvasm165.inc ****     in      r0, USBIN       ;[039] <-- phase
+GAS LISTING /var/folders/vz/rkl2xwmd101cf1_bchzxp1hm0000gn/T//ccJxE77m.s 			page 23
+
+
+ 243:usbdrv/usbdrvasm165.inc ****     ori     shift, 0x04     ;[040]
+ 244:usbdrv/usbdrvasm165.inc ****     mov     x1, x2          ;[041]
+ 245:usbdrv/usbdrvasm165.inc ****     rjmp    didUnstuff2     ;[042]
+ 246               	;   [---]                   ;[043]
+ 247               	                            ;[033]
+ 248               	
+ 249               	unstuff3:                   ;[043]
+ 250:usbdrv/usbdrvasm165.inc ****     in      x2, USBIN       ;[044] <-- bit 3 again
+ 251:usbdrv/usbdrvasm165.inc ****     eor     r0, x2          ;[045]
+ 252:usbdrv/usbdrvasm165.inc ****     or      phase, r0       ;[046]
+ 253:usbdrv/usbdrvasm165.inc ****     andi    x3, ~0x08       ;[047]
+ 254:usbdrv/usbdrvasm165.inc ****     ori     shift, 0x08     ;[048]
+ 255:usbdrv/usbdrvasm165.inc ****     nop                     ;[049]
+ 256:usbdrv/usbdrvasm165.inc ****     in      r0, USBIN       ;[050] <-- phase
+ 257:usbdrv/usbdrvasm165.inc ****     rjmp    didUnstuff3     ;[051]
+ 258               	;   [---]                   ;[052]
+ 259               	                            ;[042]
+ 260               	
+ 261               	unstuff4:                   ;[053]
+ 262:usbdrv/usbdrvasm165.inc ****     andi    x3, ~0x10       ;[054]
+ 263:usbdrv/usbdrvasm165.inc ****     in      x1, USBIN       ;[055] <-- bit 4 again
+ 264:usbdrv/usbdrvasm165.inc ****     ori     shift, 0x10     ;[056]
+ 265:usbdrv/usbdrvasm165.inc ****     rjmp    didUnstuff4     ;[057]
+ 266               	;   [---]                   ;[058]
+ 267               	                            ;[048]
+ 268               	
+ 269               	rxLoop:                     ;[085]
+ 270:usbdrv/usbdrvasm165.inc ****     eor     x3, shift       ;[086] reconstruct: x3 is 0 at bit locations we changed, 1 at others
+ 271:usbdrv/usbdrvasm165.inc ****     in      x1, USBIN       ;[000] <-- bit 0
+ 272:usbdrv/usbdrvasm165.inc ****     st      y+, x3          ;[001]
+ 273               	;   [---]                   ;[002]
+ 274:usbdrv/usbdrvasm165.inc ****     eor     r0, x1          ;[003]
+ 275:usbdrv/usbdrvasm165.inc ****     or      phase, r0       ;[004]
+ 276:usbdrv/usbdrvasm165.inc ****     eor     x2, x1          ;[005]
+ 277:usbdrv/usbdrvasm165.inc ****     in      r0, USBIN       ;[006] <-- phase
+ 278:usbdrv/usbdrvasm165.inc ****     ser     x3              ;[007]
+ 279:usbdrv/usbdrvasm165.inc ****     bst     x2, USBMINUS    ;[008]
+ 280:usbdrv/usbdrvasm165.inc ****     bld     shift, 0        ;[009]
+ 281:usbdrv/usbdrvasm165.inc ****     andi    shift, 0xf9     ;[010]
+ 282               	rxbit1:                     ;[   ]
+ 283:usbdrv/usbdrvasm165.inc ****     in      x2, USBIN       ;[011] <-- bit 1
+ 284:usbdrv/usbdrvasm165.inc ****     breq    unstuff0        ;[012] *** unstuff escape
+ 285:usbdrv/usbdrvasm165.inc ****     andi    x2, USBMASK     ;[013] SE0 check for bit 1
+ 286               	didUnstuff0:                ;[   ] Z only set if we detected SE0 in bitstuff
+ 287:usbdrv/usbdrvasm165.inc ****     breq    se0             ;[014]
+ 288:usbdrv/usbdrvasm165.inc ****     eor     r0, x2          ;[015]
+ 289:usbdrv/usbdrvasm165.inc ****     or      phase, r0       ;[016]
+ 290:usbdrv/usbdrvasm165.inc ****     in      r0, USBIN       ;[017] <-- phase
+ 291:usbdrv/usbdrvasm165.inc ****     eor     x1, x2          ;[018]
+ 292:usbdrv/usbdrvasm165.inc ****     bst     x1, USBMINUS    ;[019]
+ 293:usbdrv/usbdrvasm165.inc ****     bld     shift, 1        ;[020]
+ 294:usbdrv/usbdrvasm165.inc ****     andi    shift, 0xf3     ;[021]
+ 295               	didUnstuff1:                ;[   ]
+ 296:usbdrv/usbdrvasm165.inc ****     in      x1, USBIN       ;[022] <-- bit 2
+ 297:usbdrv/usbdrvasm165.inc ****     breq    unstuff1        ;[023] *** unstuff escape
+ 298:usbdrv/usbdrvasm165.inc ****     eor     r0, x1          ;[024]
+ 299:usbdrv/usbdrvasm165.inc ****     or      phase, r0       ;[025]
+GAS LISTING /var/folders/vz/rkl2xwmd101cf1_bchzxp1hm0000gn/T//ccJxE77m.s 			page 24
+
+
+ 300:usbdrv/usbdrvasm165.inc ****     subi    cnt, 1          ;[026] overflow check
+ 301:usbdrv/usbdrvasm165.inc ****     brcs    overflow        ;[027]
+ 302:usbdrv/usbdrvasm165.inc ****     in      r0, USBIN       ;[028] <-- phase
+ 303:usbdrv/usbdrvasm165.inc ****     eor     x2, x1          ;[029]
+ 304:usbdrv/usbdrvasm165.inc ****     bst     x2, USBMINUS    ;[030]
+ 305:usbdrv/usbdrvasm165.inc ****     bld     shift, 2        ;[031]
+ 306:usbdrv/usbdrvasm165.inc ****     andi    shift, 0xe7     ;[032]
+ 307               	didUnstuff2:                ;[   ]
+ 308:usbdrv/usbdrvasm165.inc ****     in      x2, USBIN       ;[033] <-- bit 3
+ 309:usbdrv/usbdrvasm165.inc ****     breq    unstuff2        ;[034] *** unstuff escape
+ 310:usbdrv/usbdrvasm165.inc ****     eor     r0, x2          ;[035]
+ 311:usbdrv/usbdrvasm165.inc ****     or      phase, r0       ;[036]
+ 312:usbdrv/usbdrvasm165.inc ****     eor     x1, x2          ;[037]
+ 313:usbdrv/usbdrvasm165.inc ****     bst     x1, USBMINUS    ;[038]
+ 314:usbdrv/usbdrvasm165.inc ****     in      r0, USBIN       ;[039] <-- phase
+ 315:usbdrv/usbdrvasm165.inc ****     bld     shift, 3        ;[040]
+ 316:usbdrv/usbdrvasm165.inc ****     andi    shift, 0xcf     ;[041]
+ 317               	didUnstuff3:                ;[   ]
+ 318:usbdrv/usbdrvasm165.inc ****     breq    unstuff3        ;[042] *** unstuff escape
+ 319:usbdrv/usbdrvasm165.inc ****     nop                     ;[043]
+ 320:usbdrv/usbdrvasm165.inc ****     in      x1, USBIN       ;[044] <-- bit 4
+ 321:usbdrv/usbdrvasm165.inc ****     eor     x2, x1          ;[045]
+ 322:usbdrv/usbdrvasm165.inc ****     bst     x2, USBMINUS    ;[046]
+ 323:usbdrv/usbdrvasm165.inc ****     bld     shift, 4        ;[047]
+ 324               	didUnstuff4:                ;[   ]
+ 325:usbdrv/usbdrvasm165.inc ****     eor     r0, x1          ;[048]
+ 326:usbdrv/usbdrvasm165.inc ****     or      phase, r0       ;[049]
+ 327:usbdrv/usbdrvasm165.inc ****     in      r0, USBIN       ;[050] <-- phase
+ 328:usbdrv/usbdrvasm165.inc ****     andi    shift, 0x9f     ;[051]
+ 329:usbdrv/usbdrvasm165.inc ****     breq    unstuff4        ;[052] *** unstuff escape
+ 330:usbdrv/usbdrvasm165.inc ****     rjmp    continueWithBit5;[053]
+ 331               	;   [---]                   ;[054]
+ 332               	
+ 333               	macro POP_STANDARD ; 16 cycles
+ 334               	    pop     cnt
+ 335               	    pop     x4
+ 336               	    pop     x3
+ 337               	    pop     x2
+ 338               	    pop     x1
+ 339               	    pop     shift
+ 340               	    pop     YH
+ 341               	    pop     r0
+ 342               	    endm
+ 343               	macro POP_RETI     ; 5 cycles
+ 344               	    pop     YL
+ 345               	    out     SREG, YL
+ 346               	    pop     YL
+ 347               	    endm
+ 348               	
+ 349               	#include "asmcommon.inc"
+   1               	/* Name: asmcommon.inc
+   2               	 * Project: V-USB, virtual USB port for Atmel's(r) AVR(r) microcontrollers
+   3               	 * Author: Christian Starkjohann
+   4               	 * Creation Date: 2007-11-05
+   5               	 * Tabsize: 4
+   6               	 * Copyright: (c) 2007 by OBJECTIVE DEVELOPMENT Software GmbH
+   7               	 * License: GNU GPL v2 (see License.txt), GNU GPL v3 or proprietary (CommercialLicense.txt)
+GAS LISTING /var/folders/vz/rkl2xwmd101cf1_bchzxp1hm0000gn/T//ccJxE77m.s 			page 25
+
+
+   8               	 */
+   9               	
+  10               	/* Do not link this file! Link usbdrvasm.S instead, which includes the
+  11               	 * appropriate implementation!
+  12               	 */
+  13               	
+  14               	/*
+  15               	General Description:
+  16               	This file contains assembler code which is shared among the USB driver
+  17               	implementations for different CPU cocks. Since the code must be inserted
+  18               	in the middle of the module, it's split out into this file and #included.
+  19               	
+  20               	Jump destinations called from outside:
+  21               	    sofError: Called when no start sequence was found.
+  22               	    se0: Called when a package has been successfully received.
+  23               	    overflow: Called when receive buffer overflows.
+  24               	    doReturn: Called after sending data.
+  25               	
+  26               	Outside jump destinations used by this module:
+  27               	    waitForJ: Called to receive an already arriving packet.
+  28               	    sendAckAndReti:
+  29               	    sendNakAndReti:
+  30               	    sendCntAndReti:
+  31               	    usbSendAndReti:
+  32               	
+  33               	The following macros must be defined before this file is included:
+  34               	    .macro POP_STANDARD
+  35               	    .endm
+  36               	    .macro POP_RETI
+  37               	    .endm
+  38               	*/
+  39               	
+  40               	#define token   x1
+  41               	
+  42               	overflow:
+  43:usbdrv/asmcommon.inc ****     ldi     x2, 1<<USB_INTR_PENDING_BIT
+  44:usbdrv/asmcommon.inc ****     USB_STORE_PENDING(x2)       ; clear any pending interrupts
+  45               	ignorePacket:
+  46:usbdrv/asmcommon.inc ****     clr     token
+  47:usbdrv/asmcommon.inc ****     rjmp    storeTokenAndReturn
+  48               	
+  49               	;----------------------------------------------------------------------------
+  50               	; Processing of received packet (numbers in brackets are cycles after center of SE0)
+  51               	;----------------------------------------------------------------------------
+  52               	;This is the only non-error exit point for the software receiver loop
+  53               	;we don't check any CRCs here because there is no time left.
+  54               	se0:
+  55:usbdrv/asmcommon.inc ****     subi    cnt, USB_BUFSIZE    ;[5]
+  56:usbdrv/asmcommon.inc ****     neg     cnt                 ;[6]
+  57:usbdrv/asmcommon.inc ****     sub     YL, cnt             ;[7]
+  58:usbdrv/asmcommon.inc ****     sbci    YH, 0               ;[8]
+  59:usbdrv/asmcommon.inc ****     ldi     x2, 1<<USB_INTR_PENDING_BIT ;[9]
+  60:usbdrv/asmcommon.inc ****     USB_STORE_PENDING(x2)       ;[10] clear pending intr and check flag later. SE0 should be over.
+  61:usbdrv/asmcommon.inc ****     ld      token, y            ;[11]
+  62:usbdrv/asmcommon.inc ****     cpi     token, USBPID_DATA0 ;[13]
+  63:usbdrv/asmcommon.inc ****     breq    handleData          ;[14]
+  64:usbdrv/asmcommon.inc ****     cpi     token, USBPID_DATA1 ;[15]
+GAS LISTING /var/folders/vz/rkl2xwmd101cf1_bchzxp1hm0000gn/T//ccJxE77m.s 			page 26
+
+
+  65:usbdrv/asmcommon.inc ****     breq    handleData          ;[16]
+  66:usbdrv/asmcommon.inc ****     lds     shift, usbDeviceAddr;[17]
+  67:usbdrv/asmcommon.inc ****     ldd     x2, y+1             ;[19] ADDR and 1 bit endpoint number
+  68:usbdrv/asmcommon.inc ****     lsl     x2                  ;[21] shift out 1 bit endpoint number
+  69:usbdrv/asmcommon.inc ****     cpse    x2, shift           ;[22]
+  70:usbdrv/asmcommon.inc ****     rjmp    ignorePacket        ;[23]
+  71               	/* only compute endpoint number in x3 if required later */
+  72               	#if USB_CFG_HAVE_INTRIN_ENDPOINT || USB_CFG_IMPLEMENT_FN_WRITEOUT
+  73:usbdrv/asmcommon.inc ****     ldd     x3, y+2             ;[24] endpoint number + crc
+  74:usbdrv/asmcommon.inc ****     rol     x3                  ;[26] shift in LSB of endpoint
+  75               	#endif
+  76:usbdrv/asmcommon.inc ****     cpi     token, USBPID_IN    ;[27]
+  77:usbdrv/asmcommon.inc ****     breq    handleIn            ;[28]
+  78:usbdrv/asmcommon.inc ****     cpi     token, USBPID_SETUP ;[29]
+  79:usbdrv/asmcommon.inc ****     breq    handleSetupOrOut    ;[30]
+  80:usbdrv/asmcommon.inc ****     cpi     token, USBPID_OUT   ;[31]
+  81:usbdrv/asmcommon.inc ****     brne    ignorePacket        ;[32] must be ack, nak or whatever
+  82               	;   rjmp    handleSetupOrOut    ; fallthrough
+  83               	
+  84               	;Setup and Out are followed by a data packet two bit times (16 cycles) after
+  85               	;the end of SE0. The sync code allows up to 40 cycles delay from the start of
+  86               	;the sync pattern until the first bit is sampled. That's a total of 56 cycles.
+  87               	handleSetupOrOut:               ;[32]
+  88               	#if USB_CFG_IMPLEMENT_FN_WRITEOUT   /* if we have data for endpoint != 0, set usbCurrentTok to addr
+  89               	    andi    x3, 0xf             ;[32]
+  90               	    breq    storeTokenAndReturn ;[33]
+  91               	    mov     token, x3           ;[34] indicate that this is endpoint x OUT
+  92               	#endif
+  93               	storeTokenAndReturn:
+  94:usbdrv/asmcommon.inc ****     sts     usbCurrentTok, token;[35]
+  95               	doReturn:
+  96:usbdrv/asmcommon.inc ****     POP_STANDARD                ;[37] 12...16 cycles
+  96 0212 3F91      	>  pop r19
+  96 0214 5F91      	>  pop r21
+  96 0216 4F91      	>  pop r20
+  96 0218 1F91      	>  pop r17
+  96 021a 0F91      	>  pop r16
+  96 021c 2F91      	>  pop r18
+  96 021e DF91      	>  pop r29
+  96 0220 0F90      	>  pop r0
+  97:usbdrv/asmcommon.inc ****     USB_LOAD_PENDING(YL)        ;[49]
+  98:usbdrv/asmcommon.inc ****     sbrc    YL, USB_INTR_PENDING_BIT;[50] check whether data is already arriving
+  99:usbdrv/asmcommon.inc ****     rjmp    waitForJ            ;[51] save the pops and pushes -- a new interrupt is already pendin
+ 100               	sofError:
+ 101:usbdrv/asmcommon.inc ****     POP_RETI                    ;macro call
+ 101 0228 CF91      	>  pop r28
+ 101 022a CFBF      	>  out ((0x3F)+0),r28
+ 101 022c CF91      	>  pop r28
+ 102:usbdrv/asmcommon.inc ****     reti
+ 103               	
+ 104               	handleData:
+ 105               	#if USB_CFG_CHECK_CRC
+ 106               	    CRC_CLEANUP_AND_CHECK       ; jumps to ignorePacket if CRC error
+ 107               	#endif
+ 108:usbdrv/asmcommon.inc ****     lds     shift, usbCurrentTok;[18]
+ 109:usbdrv/asmcommon.inc ****     tst     shift               ;[20]
+ 110:usbdrv/asmcommon.inc ****     breq    doReturn            ;[21]
+GAS LISTING /var/folders/vz/rkl2xwmd101cf1_bchzxp1hm0000gn/T//ccJxE77m.s 			page 27
+
+
+ 111:usbdrv/asmcommon.inc ****     lds     x2, usbRxLen        ;[22]
+ 112:usbdrv/asmcommon.inc ****     tst     x2                  ;[24]
+ 113:usbdrv/asmcommon.inc ****     brne    sendNakAndReti      ;[25]
+ 114               	; 2006-03-11: The following two lines fix a problem where the device was not
+ 115               	; recognized if usbPoll() was called less frequently than once every 4 ms.
+ 116:usbdrv/asmcommon.inc ****     cpi     cnt, 4              ;[26] zero sized data packets are status phase only -- ignore and a
+ 117:usbdrv/asmcommon.inc ****     brmi    sendAckAndReti      ;[27] keep rx buffer clean -- we must not NAK next SETUP
+ 118               	#if USB_CFG_CHECK_DATA_TOGGLING
+ 119               	    sts     usbCurrentDataToken, token  ; store for checking by C code
+ 120               	#endif
+ 121:usbdrv/asmcommon.inc ****     sts     usbRxLen, cnt       ;[28] store received data, swap buffers
+ 122:usbdrv/asmcommon.inc ****     sts     usbRxToken, shift   ;[30]
+ 123:usbdrv/asmcommon.inc ****     lds     x2, usbInputBufOffset;[32] swap buffers
+ 124:usbdrv/asmcommon.inc ****     ldi     cnt, USB_BUFSIZE    ;[34]
+ 125:usbdrv/asmcommon.inc ****     sub     cnt, x2             ;[35]
+ 126:usbdrv/asmcommon.inc ****     sts     usbInputBufOffset, cnt;[36] buffers now swapped
+ 127:usbdrv/asmcommon.inc ****     rjmp    sendAckAndReti      ;[38] 40 + 17 = 57 until SOP
+ 128               	
+ 129               	handleIn:
+ 130               	;We don't send any data as long as the C code has not processed the current
+ 131               	;input data and potentially updated the output data. That's more efficient
+ 132               	;in terms of code size than clearing the tx buffers when a packet is received.
+ 133:usbdrv/asmcommon.inc ****     lds     x1, usbRxLen        ;[30]
+ 134:usbdrv/asmcommon.inc ****     cpi     x1, 1               ;[32] negative values are flow control, 0 means "buffer free"
+ 135:usbdrv/asmcommon.inc ****     brge    sendNakAndReti      ;[33] unprocessed input packet?
+ 136:usbdrv/asmcommon.inc ****     ldi     x1, USBPID_NAK      ;[34] prepare value for usbTxLen
+ 137               	#if USB_CFG_HAVE_INTRIN_ENDPOINT
+ 138:usbdrv/asmcommon.inc ****     andi    x3, 0xf             ;[35] x3 contains endpoint
+ 139               	#if USB_CFG_SUPPRESS_INTR_CODE
+ 140               	    brne    sendNakAndReti      ;[36]
+ 141               	#else
+ 142:usbdrv/asmcommon.inc ****     brne    handleIn1           ;[36]
+ 143               	#endif
+ 144               	#endif
+ 145:usbdrv/asmcommon.inc ****     lds     cnt, usbTxLen       ;[37]
+ 146:usbdrv/asmcommon.inc ****     sbrc    cnt, 4              ;[39] all handshake tokens have bit 4 set
+ 147:usbdrv/asmcommon.inc ****     rjmp    sendCntAndReti      ;[40] 42 + 16 = 58 until SOP
+ 148:usbdrv/asmcommon.inc ****     sts     usbTxLen, x1        ;[41] x1 == USBPID_NAK from above
+ 149:usbdrv/asmcommon.inc ****     ldi     YL, lo8(usbTxBuf)   ;[43]
+ 150:usbdrv/asmcommon.inc ****     ldi     YH, hi8(usbTxBuf)   ;[44]
+ 151:usbdrv/asmcommon.inc ****     rjmp    usbSendAndReti      ;[45] 57 + 12 = 59 until SOP
+ 152               	
+ 153               	; Comment about when to set usbTxLen to USBPID_NAK:
+ 154               	; We should set it back when we receive the ACK from the host. This would
+ 155               	; be simple to implement: One static variable which stores whether the last
+ 156               	; tx was for endpoint 0 or 1 and a compare in the receiver to distinguish the
+ 157               	; ACK. However, we set it back immediately when we send the package,
+ 158               	; assuming that no error occurs and the host sends an ACK. We save one byte
+ 159               	; RAM this way and avoid potential problems with endless retries. The rest of
+ 160               	; the driver assumes error-free transfers anyway.
+ 161               	
+ 162               	#if !USB_CFG_SUPPRESS_INTR_CODE && USB_CFG_HAVE_INTRIN_ENDPOINT /* placed here due to relative jump
+ 163               	handleIn1:                      ;[38]
+ 164               	#if USB_CFG_HAVE_INTRIN_ENDPOINT3
+ 165               	; 2006-06-10 as suggested by O.Tamura: support second INTR IN / BULK IN endpoint
+ 166               	    cpi     x3, USB_CFG_EP3_NUMBER;[38]
+ 167               	    breq    handleIn3           ;[39]
+GAS LISTING /var/folders/vz/rkl2xwmd101cf1_bchzxp1hm0000gn/T//ccJxE77m.s 			page 28
+
+
+ 168               	#endif
+ 169:usbdrv/asmcommon.inc ****     lds     cnt, usbTxLen1      ;[40]
+ 170:usbdrv/asmcommon.inc ****     sbrc    cnt, 4              ;[42] all handshake tokens have bit 4 set
+ 171:usbdrv/asmcommon.inc ****     rjmp    sendCntAndReti      ;[43] 47 + 16 = 63 until SOP
+ 172:usbdrv/asmcommon.inc ****     sts     usbTxLen1, x1       ;[44] x1 == USBPID_NAK from above
+ 173:usbdrv/asmcommon.inc ****     ldi     YL, lo8(usbTxBuf1)  ;[46]
+ 174:usbdrv/asmcommon.inc ****     ldi     YH, hi8(usbTxBuf1)  ;[47]
+ 175:usbdrv/asmcommon.inc ****     rjmp    usbSendAndReti      ;[48] 50 + 12 = 62 until SOP
+ 176               	
+ 350               	
+ 351               	
+ 352               	; USB spec says:
+ 353               	; idle = J
+ 354               	; J = (D+ = 0), (D- = 1)
+ 355               	; K = (D+ = 1), (D- = 0)
+ 356               	; Spec allows 7.5 bit times from EOP to SOP for replies
+ 357               	
+ 358               	bitstuff7:
+ 359:usbdrv/usbdrvasm165.inc ****     eor     x1, x4          ;[4]
+ 360:usbdrv/usbdrvasm165.inc ****     ldi     x2, 0           ;[5]
+ 361:usbdrv/usbdrvasm165.inc ****     nop2                    ;[6] C is zero (brcc)
+ 362:usbdrv/usbdrvasm165.inc ****     rjmp    didStuff7       ;[8]
+ 363               	
+ 364               	bitstuffN:
+ 365:usbdrv/usbdrvasm165.inc ****     eor     x1, x4          ;[5]
+ 366:usbdrv/usbdrvasm165.inc ****     ldi     x2, 0           ;[6]
+ 367:usbdrv/usbdrvasm165.inc ****     lpm                     ;[7] 3 cycle NOP, modifies r0
+ 368:usbdrv/usbdrvasm165.inc ****     out     USBOUT, x1      ;[10] <-- out
+ 369:usbdrv/usbdrvasm165.inc ****     rjmp    didStuffN       ;[0]
+ 370               	
+ 371               	#define bitStatus   x3
+ 372               	
+ 373               	sendNakAndReti:
+ 374:usbdrv/usbdrvasm165.inc ****     ldi     cnt, USBPID_NAK ;[-19]
+ 375:usbdrv/usbdrvasm165.inc ****     rjmp    sendCntAndReti  ;[-18]
+ 376               	sendAckAndReti:
+ 377:usbdrv/usbdrvasm165.inc ****     ldi     cnt, USBPID_ACK ;[-17]
+ 378               	sendCntAndReti:
+ 379:usbdrv/usbdrvasm165.inc ****     mov     r0, cnt         ;[-16]
+ 380:usbdrv/usbdrvasm165.inc ****     ldi     YL, 0           ;[-15] R0 address is 0
+ 381:usbdrv/usbdrvasm165.inc ****     ldi     YH, 0           ;[-14]
+ 382:usbdrv/usbdrvasm165.inc ****     ldi     cnt, 2          ;[-13]
+ 383               	;   rjmp    usbSendAndReti      fallthrough
+ 384               	
+ 385               	;usbSend:
+ 386               	;pointer to data in 'Y'
+ 387               	;number of bytes in 'cnt' -- including sync byte [range 2 ... 12]
+ 388               	;uses: x1...x4, shift, cnt, Y
+ 389               	;Numbers in brackets are time since first bit of sync pattern is sent
+ 390               	usbSendAndReti:             ; 12 cycles until SOP
+ 391:usbdrv/usbdrvasm165.inc ****     in      x2, USBDDR      ;[-12]
+ 392:usbdrv/usbdrvasm165.inc ****     ori     x2, USBMASK     ;[-11]
+ 393:usbdrv/usbdrvasm165.inc ****     sbi     USBOUT, USBMINUS;[-10] prepare idle state; D+ and D- must have been 0 (no pullups)
+ 394:usbdrv/usbdrvasm165.inc ****     in      x1, USBOUT      ;[-8] port mirror for tx loop
+ 395:usbdrv/usbdrvasm165.inc ****     out     USBDDR, x2      ;[-7] <- acquire bus
+ 396               	; need not init x2 (bitstuff history) because sync starts with 0
+ 397:usbdrv/usbdrvasm165.inc ****     ldi     x4, USBMASK     ;[-6] exor mask
+GAS LISTING /var/folders/vz/rkl2xwmd101cf1_bchzxp1hm0000gn/T//ccJxE77m.s 			page 29
+
+
+ 398:usbdrv/usbdrvasm165.inc ****     ldi     shift, 0x80     ;[-5] sync byte is first byte sent
+ 399:usbdrv/usbdrvasm165.inc ****     ldi     bitStatus, 0xff ;[-4] init bit loop counter, works for up to 12 bytes
+ 400               	byteloop:
+ 401               	bitloop:
+ 402:usbdrv/usbdrvasm165.inc ****     sbrs    shift, 0        ;[8] [-3]
+ 403:usbdrv/usbdrvasm165.inc ****     eor     x1, x4          ;[9] [-2]
+ 404:usbdrv/usbdrvasm165.inc ****     out     USBOUT, x1      ;[10] [-1] <-- out
+ 405:usbdrv/usbdrvasm165.inc ****     ror     shift           ;[0]
+ 406:usbdrv/usbdrvasm165.inc ****     ror     x2              ;[1]
+ 407               	didStuffN:
+ 408:usbdrv/usbdrvasm165.inc ****     cpi     x2, 0xfc        ;[2]
+ 409:usbdrv/usbdrvasm165.inc ****     brcc    bitstuffN       ;[3]
+ 410:usbdrv/usbdrvasm165.inc ****     nop                     ;[4]
+ 411:usbdrv/usbdrvasm165.inc ****     subi    bitStatus, 37   ;[5] 256 / 7 ~=~ 37
+ 412:usbdrv/usbdrvasm165.inc ****     brcc    bitloop         ;[6] when we leave the loop, bitStatus has almost the initial value
+ 413:usbdrv/usbdrvasm165.inc ****     sbrs    shift, 0        ;[7]
+ 414:usbdrv/usbdrvasm165.inc ****     eor     x1, x4          ;[8]
+ 415:usbdrv/usbdrvasm165.inc ****     ror     shift           ;[9]
+ 416               	didStuff7:
+ 417:usbdrv/usbdrvasm165.inc ****     out     USBOUT, x1      ;[10] <-- out
+ 418:usbdrv/usbdrvasm165.inc ****     ror     x2              ;[0]
+ 419:usbdrv/usbdrvasm165.inc ****     cpi     x2, 0xfc        ;[1]
+ 420:usbdrv/usbdrvasm165.inc ****     brcc    bitstuff7       ;[2]
+ 421:usbdrv/usbdrvasm165.inc ****     ld      shift, y+       ;[3]
+ 422:usbdrv/usbdrvasm165.inc ****     dec     cnt             ;[5]
+ 423:usbdrv/usbdrvasm165.inc ****     brne    byteloop        ;[6]
+ 424               	;make SE0:
+ 425:usbdrv/usbdrvasm165.inc ****     cbr     x1, USBMASK     ;[7] prepare SE0 [spec says EOP may be 21 to 25 cycles]
+ 426:usbdrv/usbdrvasm165.inc ****     lds     x2, usbNewDeviceAddr;[8]
+ 427:usbdrv/usbdrvasm165.inc ****     lsl     x2              ;[10] we compare with left shifted address
+ 428:usbdrv/usbdrvasm165.inc ****     out     USBOUT, x1      ;[11] <-- out SE0 -- from now 2 bits = 22 cycles until bus idle
+ 429               	;2006-03-06: moved transfer of new address to usbDeviceAddr from C-Code to asm:
+ 430               	;set address only after data packet was sent, not after handshake
+ 431:usbdrv/usbdrvasm165.inc ****     subi    YL, 2           ;[0] Only assign address on data packets, not ACK/NAK in r0
+ 432:usbdrv/usbdrvasm165.inc ****     sbci    YH, 0           ;[1]
+ 433:usbdrv/usbdrvasm165.inc ****     breq    skipAddrAssign  ;[2]
+ 434:usbdrv/usbdrvasm165.inc ****     sts     usbDeviceAddr, x2; if not skipped: SE0 is one cycle longer
+ 435               	skipAddrAssign:
+ 436               	;end of usbDeviceAddress transfer
+ 437:usbdrv/usbdrvasm165.inc ****     ldi     x2, 1<<USB_INTR_PENDING_BIT;[4] int0 occurred during TX -- clear pending flag
+ 438:usbdrv/usbdrvasm165.inc ****     USB_STORE_PENDING(x2)   ;[5]
+ 439:usbdrv/usbdrvasm165.inc ****     ori     x1, USBIDLE     ;[6]
+ 440:usbdrv/usbdrvasm165.inc ****     in      x2, USBDDR      ;[7]
+ 441:usbdrv/usbdrvasm165.inc ****     cbr     x2, USBMASK     ;[8] set both pins to input
+ 442:usbdrv/usbdrvasm165.inc ****     mov     x3, x1          ;[9]
+ 443:usbdrv/usbdrvasm165.inc ****     cbr     x3, USBMASK     ;[10] configure no pullup on both pins
+ 444:usbdrv/usbdrvasm165.inc ****     ldi     x4, 4           ;[11]
+ 445               	se0Delay:
+ 446:usbdrv/usbdrvasm165.inc ****     dec     x4              ;[12] [15] [18] [21]
+ 447:usbdrv/usbdrvasm165.inc ****     brne    se0Delay        ;[13] [16] [19] [22]
+ 448:usbdrv/usbdrvasm165.inc ****     out     USBOUT, x1      ;[23] <-- out J (idle) -- end of SE0 (EOP signal)
+ 449:usbdrv/usbdrvasm165.inc ****     out     USBDDR, x2      ;[24] <-- release bus now
+ 450:usbdrv/usbdrvasm165.inc ****     out     USBOUT, x3      ;[25] <-- ensure no pull-up resistors are active
+ 451:usbdrv/usbdrvasm165.inc ****     rjmp    doReturn
+ 452               	
+GAS LISTING /var/folders/vz/rkl2xwmd101cf1_bchzxp1hm0000gn/T//ccJxE77m.s 			page 30
+
+
+DEFINED SYMBOLS
+usbdrv/usbdrvasm165.inc:38     .text:0000000000000058 __vector_2
+  usbdrv/usbdrvasm.S:232    .text:0000000000000000 usbCrc16
+  usbdrv/usbdrvasm.S:264    .text:000000000000002a usbCrc16Append
+  usbdrv/usbdrvasm.S:254    .text:0000000000000024 usbCrcLoopEntry
+  usbdrv/usbdrvasm.S:242    .text:0000000000000012 usbCrcByteLoop
+  usbdrv/usbdrvasm.S:245    .text:0000000000000016 usbCrcBitLoop
+  usbdrv/usbdrvasm.S:251    .text:0000000000000020 usbCrcNoXor
+  usbdrv/usbdrvasm.S:257    .text:0000000000000028 usbCrcReady
+  usbdrv/usbdrvasm.S:319    .text:0000000000000032 usbMeasureFrameLength
+  usbdrv/usbdrvasm.S:323    .text:0000000000000038 usbMFTime16
+  usbdrv/usbdrvasm.S:342    .text:0000000000000056 usbMFTimeout
+  usbdrv/usbdrvasm.S:326    .text:000000000000003c usbMFWaitStrobe
+  usbdrv/usbdrvasm.S:331    .text:0000000000000044 usbMFWaitIdle
+  usbdrv/usbdrvasm.S:336    .text:000000000000004c usbMFWaitLoop
+usbdrv/usbdrvasm165.inc:51     .text:000000000000005e waitForJ
+usbdrv/usbdrvasm165.inc:55     .text:0000000000000064 waitForK
+usbdrv/usbdrvasm165.inc:78     .text:000000000000007e foundK
+usbdrv/asmcommon.inc:100    .text:0000000000000228 sofError
+usbdrv/usbdrvasm165.inc:103    .text:0000000000000098 haveTwoBitsK
+usbdrv/usbdrvasm165.inc:282    .text:000000000000017e rxbit1
+usbdrv/usbdrvasm165.inc:139    .text:00000000000000b4 continueWithBit5
+usbdrv/usbdrvasm165.inc:183    .text:00000000000000f8 unstuff5
+usbdrv/usbdrvasm165.inc:156    .text:00000000000000d4 didUnstuff6
+usbdrv/usbdrvasm165.inc:203    .text:0000000000000116 unstuff6
+usbdrv/usbdrvasm165.inc:160    .text:00000000000000da didUnstuff5
+usbdrv/usbdrvasm165.inc:167    .text:00000000000000e4 didUnstuff7
+usbdrv/usbdrvasm165.inc:269    .text:0000000000000168 rxLoop
+usbdrv/usbdrvasm165.inc:174    .text:00000000000000ee unstuff7
+usbdrv/usbdrvasm165.inc:213    .text:0000000000000120 unstuff0
+usbdrv/usbdrvasm165.inc:286    .text:0000000000000184 didUnstuff0
+usbdrv/usbdrvasm165.inc:227    .text:0000000000000134 unstuff1
+usbdrv/usbdrvasm165.inc:295    .text:0000000000000194 didUnstuff1
+usbdrv/usbdrvasm165.inc:238    .text:0000000000000142 unstuff2
+usbdrv/usbdrvasm165.inc:307    .text:00000000000001aa didUnstuff2
+usbdrv/usbdrvasm165.inc:249    .text:0000000000000150 unstuff3
+usbdrv/usbdrvasm165.inc:317    .text:00000000000001bc didUnstuff3
+usbdrv/usbdrvasm165.inc:261    .text:0000000000000160 unstuff4
+usbdrv/usbdrvasm165.inc:324    .text:00000000000001c8 didUnstuff4
+usbdrv/asmcommon.inc:54     .text:00000000000001dc se0
+usbdrv/asmcommon.inc:42     .text:00000000000001d4 overflow
+usbdrv/asmcommon.inc:45     .text:00000000000001d8 ignorePacket
+usbdrv/asmcommon.inc:93     .text:000000000000020e storeTokenAndReturn
+usbdrv/asmcommon.inc:104    .text:0000000000000230 handleData
+usbdrv/asmcommon.inc:129    .text:000000000000025a handleIn
+usbdrv/asmcommon.inc:87     .text:000000000000020e handleSetupOrOut
+usbdrv/asmcommon.inc:95     .text:0000000000000212 doReturn
+usbdrv/usbdrvasm165.inc:373    .text:000000000000029e sendNakAndReti
+usbdrv/usbdrvasm165.inc:376    .text:00000000000002a2 sendAckAndReti
+usbdrv/asmcommon.inc:163    .text:000000000000027a handleIn1
+usbdrv/usbdrvasm165.inc:378    .text:00000000000002a4 sendCntAndReti
+usbdrv/usbdrvasm165.inc:390    .text:00000000000002ac usbSendAndReti
+usbdrv/usbdrvasm165.inc:358    .text:000000000000028c bitstuff7
+usbdrv/usbdrvasm165.inc:416    .text:00000000000002d6 didStuff7
+usbdrv/usbdrvasm165.inc:364    .text:0000000000000294 bitstuffN
+usbdrv/usbdrvasm165.inc:407    .text:00000000000002c6 didStuffN
+usbdrv/usbdrvasm165.inc:400    .text:00000000000002bc byteloop
+GAS LISTING /var/folders/vz/rkl2xwmd101cf1_bchzxp1hm0000gn/T//ccJxE77m.s 			page 31
+
+
+usbdrv/usbdrvasm165.inc:401    .text:00000000000002bc bitloop
+usbdrv/usbdrvasm165.inc:435    .text:00000000000002f8 skipAddrAssign
+usbdrv/usbdrvasm165.inc:445    .text:0000000000000308 se0Delay
+
+UNDEFINED SYMBOLS
+usbInputBufOffset
+usbRxBuf
+usbDeviceAddr
+usbCurrentTok
+usbRxLen
+usbRxToken
+usbTxLen
+usbTxBuf
+usbTxStatus1
+usbNewDeviceAddr
